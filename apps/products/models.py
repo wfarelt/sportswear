@@ -1,3 +1,6 @@
+import re
+
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
@@ -36,10 +39,21 @@ class Category(ActiveNamedModel):
 
     def clean(self):
         super().clean()
-        if self.pk and self.parent_id == self.pk:
-            from django.core.exceptions import ValidationError
-
-            raise ValidationError({"parent": "Una categoría no puede ser su propia categoría principal."})
+        ancestor_id = self.parent_id
+        visited = set()
+        while ancestor_id:
+            if self.pk and ancestor_id == self.pk:
+                raise ValidationError(
+                    {"parent": "La categoría no puede quedar dentro de sí misma."}
+                )
+            if ancestor_id in visited:
+                break
+            visited.add(ancestor_id)
+            ancestor_id = (
+                Category.objects.filter(pk=ancestor_id)
+                .values_list("parent_id", flat=True)
+                .first()
+            )
 
 
 class Brand(ActiveNamedModel):
@@ -69,9 +83,6 @@ class Color(ActiveNamedModel):
 
     def clean(self):
         super().clean()
-        import re
-        from django.core.exceptions import ValidationError
-
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", self.hex_code or ""):
             raise ValidationError({"hex_code": "Ingresa un color hexadecimal válido, por ejemplo #1A2B3C."})
 
@@ -79,6 +90,8 @@ class Color(ActiveNamedModel):
 class Product(models.Model):
     internal_code = models.CharField("código interno", max_length=40, unique=True)
     name = models.CharField("nombre", max_length=180, db_index=True)
+    model_name = models.CharField("modelo", max_length=120, blank=True)
+    supplier_name = models.CharField("proveedor", max_length=160, blank=True)
     description = models.TextField("descripción", blank=True)
     category = models.ForeignKey(
         Category, on_delete=models.PROTECT, related_name="products", verbose_name="categoría"
@@ -125,11 +138,31 @@ class Product(models.Model):
         verbose_name_plural = "productos"
 
     def clean(self):
-        from django.core.exceptions import ValidationError
-
         errors = {}
         if self.promotional_price is not None and self.promotional_price > self.sale_price:
             errors["promotional_price"] = "El precio promocional no puede superar el precio de venta."
+
+        if self.pk and self.sale_price is not None:
+            variants = self.variants.only("sale_price", "promotional_price")
+            for variant in variants:
+                effective_price = (
+                    variant.sale_price if variant.sale_price is not None else self.sale_price
+                )
+                effective_promotion = (
+                    variant.promotional_price
+                    if variant.promotional_price is not None
+                    else self.promotional_price
+                )
+                if (
+                    effective_promotion is not None
+                    and effective_price is not None
+                    and effective_promotion > effective_price
+                ):
+                    errors["sale_price"] = (
+                        "El cambio dejaría una promoción de variante por encima de su precio efectivo. "
+                        "Actualiza primero los precios de las variantes."
+                    )
+                    break
         if errors:
             raise ValidationError(errors)
 
@@ -207,8 +240,6 @@ class ProductVariant(models.Model):
         verbose_name_plural = "variantes de productos"
 
     def clean(self):
-        from django.core.exceptions import ValidationError
-
         if not self.size_id and not self.color_id:
             raise ValidationError("Cada variante debe tener al menos una característica: talla o color.")
         if self.product_id:

@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -13,7 +14,12 @@ def branch_list(request):
     branches = Branch.objects.all()
     query = request.GET.get("q", "").strip()
     if query:
-        branches = branches.filter(name__icontains=query) | branches.filter(code__icontains=query)
+        branches = branches.filter(
+            Q(name__icontains=query)
+            | Q(code__icontains=query)
+            | Q(address__icontains=query)
+            | Q(responsible__icontains=query)
+        )
     return render(request, "branches/branch_list.html", {"branches": branches.distinct(), "query": query})
 
 

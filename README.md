@@ -61,10 +61,11 @@ La segunda fase agrega:
 
 - Gestión de sucursales con estado activo/inactivo, código, dirección, contacto y responsable.
 - Catálogos administrables de categorías jerárquicas, marcas, tallas y colores.
-- Productos con código interno, categoría, marca, costos y precios `DecimalField`, promoción opcional, impuesto e imagen.
+- Productos con código interno, nombre, modelo, proveedor opcional, categoría, marca, costos y precios `DecimalField`, promoción opcional, impuesto e imagen.
 - Variantes vendibles con SKU, código de barras, talla/color y precios/costos opcionales que heredan los valores base del producto.
 - Búsqueda por nombre, código interno, SKU y código de barras; filtros por categoría, marca y estado; paginación.
 - Administración web y Django Admin. Los registros históricos se desactivan en vez de borrarse.
+- Validación contra ciclos en categorías y contra cambios de precio base que dejarían inválida una promoción heredada de una variante.
 
 ### Permisos
 

@@ -62,3 +62,14 @@ class BranchManagementTests(TestCase):
         self.assertRedirects(response, reverse("branches:list"))
         branch.refresh_from_db()
         self.assertEqual(branch.address, "Av. Nueva")
+
+    def test_branch_search_includes_address_and_responsible(self):
+        Branch.objects.create(
+            name="Sucursal Norte", code="norte", address="Avenida Libertad",
+            responsible="Ana Pérez",
+        )
+        for query, expected in (("Libertad", "Sucursal Norte"), ("Ana Pérez", "Sucursal Norte")):
+            with self.subTest(query=query):
+                response = self.client.get(reverse("branches:list"), {"q": query})
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, expected)

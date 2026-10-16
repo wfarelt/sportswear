@@ -51,7 +51,8 @@ class ProductForm(BootstrapModelForm):
     class Meta:
         model = Product
         fields = (
-            "internal_code", "name", "description", "category", "brand", "cost",
+            "internal_code", "name", "model_name", "supplier_name", "description",
+            "category", "brand", "cost",
             "sale_price", "promotional_price", "tax_rate", "image", "is_active",
         )
         widgets = {

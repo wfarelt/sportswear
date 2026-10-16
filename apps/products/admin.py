@@ -3,29 +3,36 @@ from django.contrib import admin
 from .models import Brand, Category, Color, Product, ProductVariant, Size
 
 
+class NoDeleteModelAdmin(admin.ModelAdmin):
+    """Keep catalog records available for future historical references."""
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Category)
-class CategoryAdmin(admin.ModelAdmin):
+class CategoryAdmin(NoDeleteModelAdmin):
     list_display = ("name", "parent", "is_active")
     list_filter = ("is_active",)
     search_fields = ("name",)
 
 
 @admin.register(Brand)
-class BrandAdmin(admin.ModelAdmin):
+class BrandAdmin(NoDeleteModelAdmin):
     list_display = ("name", "is_active")
     list_filter = ("is_active",)
     search_fields = ("name",)
 
 
 @admin.register(Size)
-class SizeAdmin(admin.ModelAdmin):
+class SizeAdmin(NoDeleteModelAdmin):
     list_display = ("name", "sort_order", "is_active")
     list_filter = ("is_active",)
     ordering = ("sort_order", "name")
 
 
 @admin.register(Color)
-class ColorAdmin(admin.ModelAdmin):
+class ColorAdmin(NoDeleteModelAdmin):
     list_display = ("name", "hex_code", "is_active")
     list_filter = ("is_active",)
     search_fields = ("name",)
@@ -34,10 +41,11 @@ class ColorAdmin(admin.ModelAdmin):
 class ProductVariantInline(admin.TabularInline):
     model = ProductVariant
     extra = 0
+    can_delete = False
 
 
 @admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
+class ProductAdmin(NoDeleteModelAdmin):
     list_display = ("internal_code", "name", "category", "brand", "sale_price", "is_active")
     list_filter = ("is_active", "category", "brand")
     search_fields = ("internal_code", "name", "variants__sku", "variants__barcode")
@@ -45,7 +53,7 @@ class ProductAdmin(admin.ModelAdmin):
 
 
 @admin.register(ProductVariant)
-class ProductVariantAdmin(admin.ModelAdmin):
+class ProductVariantAdmin(NoDeleteModelAdmin):
     list_display = ("sku", "product", "size", "color", "sale_price", "is_active")
     list_filter = ("is_active", "size", "color")
     search_fields = ("sku", "barcode", "product__name")

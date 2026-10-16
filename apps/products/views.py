@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Count
@@ -11,10 +12,10 @@ from .forms import BrandForm, CategoryForm, ColorForm, ProductForm, ProductVaria
 from .models import Brand, Category, Color, Product, ProductVariant, Size
 
 REFERENCE_TYPES = {
-    "categorias": (Category, CategoryForm, "Categorías"),
-    "marcas": (Brand, BrandForm, "Marcas"),
-    "tallas": (Size, SizeForm, "Tallas"),
-    "colores": (Color, ColorForm, "Colores"),
+    "categorias": (Category, CategoryForm, "Categorías", "categoría"),
+    "marcas": (Brand, BrandForm, "Marcas", "marca"),
+    "tallas": (Size, SizeForm, "Tallas", "talla"),
+    "colores": (Color, ColorForm, "Colores", "color"),
 }
 
 
@@ -43,6 +44,8 @@ def product_list(request):
         products = products.filter(
             Q(name__icontains=query)
             | Q(internal_code__icontains=query)
+            | Q(model_name__icontains=query)
+            | Q(supplier_name__icontains=query)
             | Q(variants__sku__icontains=query)
             | Q(variants__barcode__icontains=query)
         ).distinct()
@@ -55,7 +58,9 @@ def product_list(request):
     elif status == "inactive":
         products = products.filter(is_active=False)
 
-    page_obj = Paginator(products, 25).get_page(request.GET.get("page"))
+    page_obj = Paginator(products.order_by("name", "pk"), 25).get_page(
+        request.GET.get("page")
+    )
     return render(
         request,
         "products/product_list.html",
@@ -140,18 +145,20 @@ def variant_update(request, product_pk, pk):
     )
 
 
-@permission_required_or_superuser("products.view_product")
+@login_required
 def reference_index(request):
     catalogs = []
-    for kind, (model, _form, label) in REFERENCE_TYPES.items():
+    for kind, (model, _form, label, _singular) in REFERENCE_TYPES.items():
         permission = f"products.view_{model._meta.model_name}"
         if request.user.is_superuser or request.user.has_perm(permission):
             catalogs.append({"kind": kind, "label": label, "count": model.objects.count()})
+    if not catalogs:
+        raise PermissionDenied
     return render(request, "products/reference_index.html", {"catalogs": catalogs})
 
 
 def reference_list(request, kind):
-    model, _form, label = _require_reference_permission(request, kind, "view")
+    model, _form, label, _singular = _require_reference_permission(request, kind, "view")
     records = model.objects.all()
     query = request.GET.get("q", "").strip()
     if query:
@@ -164,26 +171,26 @@ def reference_list(request, kind):
 
 
 def reference_create(request, kind):
-    model, form_class, label = _require_reference_permission(request, kind, "add")
+    model, form_class, label, singular = _require_reference_permission(request, kind, "add")
     form = form_class(request.POST or None)
     if request.method == "POST" and form.is_valid():
         record = form.save()
-        messages.success(request, f"{label[:-1]} «{record.name}» se creó correctamente.")
+        messages.success(request, f"La {singular} «{record.name}» se creó correctamente.")
         return redirect("products:reference_list", kind=kind)
     return render(
         request,
         "products/reference_form.html",
-        {"form": form, "kind": kind, "label": label, "page_title": f"Nuevo registro: {label[:-1].lower()}"},
+        {"form": form, "kind": kind, "label": label, "page_title": f"Nueva {singular}"},
     )
 
 
 def reference_update(request, kind, pk):
-    model, form_class, label = _require_reference_permission(request, kind, "change")
+    model, form_class, label, singular = _require_reference_permission(request, kind, "change")
     record = get_object_or_404(model, pk=pk)
     form = form_class(request.POST or None, instance=record)
     if request.method == "POST" and form.is_valid():
         record = form.save()
-        messages.success(request, f"«{record.name}» se actualizó correctamente.")
+        messages.success(request, f"La {singular} «{record.name}» se actualizó correctamente.")
         return redirect("products:reference_list", kind=kind)
     return render(
         request,
