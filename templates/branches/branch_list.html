@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}Sucursales{% endblock %}
+{% block page_heading %}Sucursales{% endblock %}
+{% block content %}
+<div class="page-intro module-intro"><div><div class="eyebrow">ORGANIZACIÓN</div><h1>Sucursales</h1><p>Administra los locales y sus datos de contacto.</p></div>{% if perms.branches.add_branch or user.is_superuser %}<a class="btn btn-primary btn-sm" href="{% url 'branches:create' %}"><i class="bi bi-plus-lg me-1"></i>Nueva sucursal</a>{% endif %}</div>
+<section class="content-panel table-panel"><form class="toolbar-search" method="get"><div class="input-with-icon"><i class="bi bi-search"></i><input class="form-control" type="search" name="q" value="{{ query }}" placeholder="Buscar por nombre o código" aria-label="Buscar sucursal"></div><button class="btn btn-outline-secondary btn-sm" type="submit">Buscar</button></form>
+<div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>Sucursal</th><th>Código</th><th>Responsable</th><th>Teléfono</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead><tbody>
+{% for branch in branches %}<tr><td><strong>{{ branch.name }}</strong><small class="table-subtext">{{ branch.address|default:"Dirección sin registrar" }}</small></td><td><span class="code-chip">{{ branch.code }}</span></td><td>{{ branch.responsible|default:"—" }}</td><td>{{ branch.phone|default:"—" }}</td><td>{% if branch.is_active %}<span class="status-badge active">Activa</span>{% else %}<span class="status-badge inactive">Inactiva</span>{% endif %}</td><td class="text-end">{% if perms.branches.change_branch or user.is_superuser %}<a class="table-action" href="{% url 'branches:update' branch.pk %}" aria-label="Editar {{ branch.name }}"><i class="bi bi-pencil-square"></i></a>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6"><div class="table-empty"><i class="bi bi-geo-alt"></i><strong>No hay sucursales registradas</strong><span>{% if query %}Prueba con otro término de búsqueda.{% else %}Crea la primera sucursal para habilitar el selector de sucursales.{% endif %}</span></div></td></tr>{% endfor %}
+</tbody></table></div><div class="table-foot">{{ branches|length }} sucursal{{ branches|length|pluralize:"es" }}</div></section>
+{% endblock %}

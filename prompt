@@ -1,0 +1,910 @@
+PROMPT MAESTRO: SISTEMA DE GESTIÓN PARA TIENDA DE ROPA DEPORTIVA
+
+1. Rol y objetivo del proyecto
+Actúa como un arquitecto de software senior especializado en Python, Django, bases de datos relacionales, diseño UX/UI y sistemas de gestión comercial para tiendas minoristas.
+Necesito desarrollar una aplicación web profesional para administrar una tienda de ropa deportiva con múltiples sucursales.
+El sistema debe permitir gestionar usuarios, sucursales, productos, clientes, ventas, inventarios, movimientos de mercadería, ingresos, egresos y cajas.
+La aplicación debe construirse siguiendo buenas prácticas de desarrollo, con una arquitectura modular, mantenible y escalable.
+Objetivos principales
+- Administrar múltiples sucursales desde una sola aplicación.
+- Controlar el inventario de cada sucursal de manera independiente.
+- Registrar ventas de forma rápida y sencilla.
+- Gestionar productos con diferentes tallas, colores, marcas y modelos.
+- Controlar ingresos, egresos y movimientos de dinero.
+- Administrar cajas y turnos de caja.
+- Consultar reportes consolidados y por sucursal.
+- Controlar permisos de usuarios.
+- Mantener un historial de las operaciones realizadas.
+- Ofrecer una interfaz moderna, minimalista y responsive.
+El sistema debe estar preparado para crecer sin necesidad de reescribir sus módulos principales.
+2. Tecnologías obligatorias
+Utilizar las siguientes tecnologías:
+Backend
+- Python.
+- Django.
+- Django ORM.
+- Django Forms y ModelForms.
+- Vistas basadas en funciones (FBV).
+- Decoradores de autenticación y permisos.
+- Django Admin para tareas administrativas.
+Frontend
+- HTML5.
+- CSS3.
+- Bootstrap 5.
+- JavaScript.
+- Bootstrap Icons.
+- AJAX o Fetch API cuando aporte mejoras reales a la experiencia de usuario.
+Base de datos
+- PostgreSQL para producción.
+- SQLite para desarrollo local, si resulta conveniente.
+- Variables de entorno para las credenciales y configuraciones sensibles.
+Herramientas
+- Git para control de versiones.
+- Docker como opción para facilitar el despliegue.
+- Archivos estáticos organizados correctamente.
+- Migraciones de Django para administrar los cambios de base de datos.
+Restricciones técnicas
+1. No utilizar React, Vue ni Angular.
+2. No utilizar Tailwind CSS.
+3. No implementar una arquitectura innecesariamente compleja.
+4. Evitar duplicar código entre módulos.
+5. No colocar toda la lógica de negocio en las vistas.
+6. Utilizar transacciones de base de datos para operaciones críticas.
+7. Mantener separadas las responsabilidades de modelos, vistas, formularios y servicios.
+8. Utilizar nombres de variables, clases, funciones, aplicaciones y archivos en inglés.
+9. La interfaz debe estar en español.
+10. Utilizar pesos bolivianos (Bs) como moneda predeterminada, con posibilidad de configurar otros parámetros comerciales.
+3. Diseño visual y experiencia de usuario
+La interfaz debe tener una apariencia moderna, minimalista, profesional y orientada a la gestión comercial.
+Principios de diseño
+Aprovechar al máximo el espacio disponible.
+Evitar interfaces con demasiados espacios vacíos, tarjetas excesivamente grandes, botones innecesariamente voluminosos o encabezados que ocupen demasiada pantalla.
+Priorizar la visualización de información útil en cada página.
+Estructura visual
+Barra lateral izquierda
+- Logotipo y nombre del negocio.
+- Panel principal.
+- Ventas.
+- Productos.
+- Inventario.
+- Movimientos.
+- Clientes.
+- Ingresos y egresos.
+- Caja.
+- Reportes.
+- Usuarios.
+- Sucursales.
+- Configuración.
+La barra lateral debe poder contraerse para ampliar el área de trabajo.
+Barra superior
+- Nombre de la página actual.
+- Selector de sucursal, según los permisos del usuario.
+- Buscador global, si corresponde.
+- Notificaciones.
+- Usuario autenticado.
+- Menú de perfil y cierre de sesión.
+Área principal
+Debe aprovechar el espacio restante de la pantalla, con contenido organizado y fácil de consultar.
+Estilo visual
+- Diseño limpio y minimalista.
+- Fondo neutro.
+- Colores profesionales relacionados con el comercio deportivo.
+- Tipografía legible.
+- Bordes discretos.
+- Sombras suaves y moderadas.
+- Iconografía consistente.
+- Tablas compactas y ordenadas.
+- Formularios distribuidos en columnas cuando sea apropiado.
+- Botones claros y de tamaño contenido.
+- Indicadores visuales para estados y alertas.
+Diseño responsive
+La aplicación debe funcionar correctamente en:
+- Computadoras de escritorio.
+- Portátiles.
+- Tablets.
+- Teléfonos móviles.
+En computadoras, aprovechar el ancho disponible para mostrar tablas completas y formularios compactos.
+En móviles, adaptar los formularios, navegación, botones y tablas para evitar desplazamientos horizontales innecesarios.
+En el módulo de ventas, priorizar la rapidez de operación incluso en pantallas pequeñas.
+Componentes reutilizables
+Crear componentes comunes para:
+- Plantilla principal.
+- Barra lateral.
+- Barra superior.
+- Mensajes de confirmación.
+- Alertas.
+- Formularios.
+- Tablas.
+- Paginación.
+- Filtros.
+- Modales.
+- Indicadores de estado.
+- Confirmaciones de operaciones.
+- Estados vacíos.
+- Pantallas de error.
+No duplicar estos componentes en cada módulo.
+4. Arquitectura del proyecto Django
+Organizar el proyecto en aplicaciones independientes según sus responsabilidades.
+Estructura propuesta:
+sportswear/
+│
+├── config/
+│   ├── settings.py
+│   ├── urls.py
+│   ├── wsgi.py
+│   └── asgi.py
+│
+├── apps/
+│   ├── core/
+│   ├── users/
+│   ├── branches/
+│   ├── products/
+│   ├── customers/
+│   ├── sales/
+│   ├── inventory/
+│   ├── cash/
+│   ├── finance/
+│   ├── reports/
+│   └── audit/
+│
+├── templates/
+│   ├── base.html
+│   ├── components/
+│   └── registration/
+│
+├── static/
+│   ├── css/
+│   ├── js/
+│   └── images/
+│
+├── media/
+├── requirements.txt
+├── .env.example
+├── .gitignore
+├── Dockerfile
+└── manage.py
+
+Esta estructura es una propuesta inicial. Ajustarla cuando exista una razón técnica concreta, sin fragmentar innecesariamente el proyecto.
+Cada aplicación debe tener sus propios modelos, vistas, formularios, URLs y plantillas cuando corresponda.
+Cuando sea necesario, separar la lógica de negocio en módulos como services.py, selectors.py o archivos equivalentes.
+No crear archivos innecesarios únicamente para cumplir con una estructura rígida.
+5. Módulo de usuarios y permisos
+Crear un sistema de autenticación seguro utilizando Django.
+Funcionalidades
+- Inicio de sesión.
+- Cierre de sesión.
+- Cambio de contraseña.
+- Recuperación de contraseña.
+- Activación y desactivación de usuarios.
+- Administración de perfiles.
+- Asignación de roles.
+- Asignación de sucursales autorizadas.
+- Registro de actividad.
+Roles sugeridos
+Administrador
+- Acceso global al sistema.
+- Gestión de sucursales.
+- Administración de usuarios y permisos.
+- Acceso a todos los reportes.
+- Configuración general.
+Gerente
+- Consulta de información de las sucursales autorizadas.
+- Supervisión de ventas.
+- Consulta de inventarios.
+- Consulta de ingresos, egresos y cajas.
+- Acceso a reportes según sus permisos.
+Vendedor
+- Registro de ventas.
+- Consulta de productos disponibles.
+- Consulta y registro de clientes, según permisos.
+- Consulta de sus propias operaciones.
+- Acceso a caja cuando tenga autorización.
+Almacenero
+- Recepción de mercadería.
+- Gestión de inventario.
+- Registro de movimientos.
+- Preparación de transferencias.
+- Consulta de existencias.
+Cajero
+- Apertura y cierre de caja.
+- Registro de ingresos y egresos autorizados.
+- Consulta de sus operaciones.
+- Registro de cobros cuando corresponda.
+Los roles son una configuración inicial. El sistema debe permitir definir permisos adicionales según las necesidades del negocio.
+Seguridad
+No confiar únicamente en los elementos ocultos de la interfaz para controlar el acceso.
+Todas las operaciones deben verificar los permisos en el servidor.
+Un usuario no debe poder acceder a datos de otra sucursal modificando manualmente una URL o un identificador.
+6. Módulo de sucursales
+Permitir administrar varias sucursales desde una única instalación.
+Datos de cada sucursal
+- Nombre.
+- Código único.
+- Dirección.
+- Teléfono.
+- Correo electrónico.
+- Responsable.
+- Estado.
+- Fecha de creación.
+Funcionalidades
+- Crear sucursales.
+- Editar información.
+- Activar o desactivar sucursales.
+- Consultar inventario por sucursal.
+- Consultar ventas por sucursal.
+- Consultar movimientos de mercadería.
+- Consultar ingresos y egresos.
+- Consultar cajas.
+- Comparar resultados entre sucursales.
+Cada sucursal debe tener inventario independiente.
+Las ventas, cajas y operaciones financieras deben estar asociadas a la sucursal correspondiente.
+Los usuarios podrán trabajar únicamente con las sucursales que tengan autorizadas.
+7. Módulo de productos
+Este módulo es fundamental para una tienda de ropa deportiva.
+Debe permitir administrar productos con variantes comerciales.
+Información del producto
+- Código interno.
+- SKU.
+- Código de barras.
+- Nombre.
+- Descripción.
+- Categoría.
+- Subcategoría.
+- Marca.
+- Modelo.
+- Proveedor, si corresponde.
+- Costo.
+- Precio de venta.
+- Precio promocional opcional.
+- Porcentaje de impuesto configurable, si corresponde.
+- Imagen principal.
+- Estado.
+- Fecha de creación.
+- Fecha de actualización.
+Categorías sugeridas
+- Poleras deportivas.
+- Camisetas de fútbol.
+- Shorts.
+- Pantalones deportivos.
+- Buzos.
+- Chaquetas.
+- Calzas.
+- Ropa de entrenamiento.
+- Zapatillas.
+- Medias.
+- Gorras.
+- Accesorios deportivos.
+Las categorías deben ser administrables.
+Variantes de productos
+La aplicación debe permitir definir variantes por:
+- Talla.
+- Color.
+- Modelo.
+- Otras características configurables cuando sean necesarias.
+Ejemplo:
+Producto: Polera deportiva.
+Talla	Color	SKU	Precio
+S	Negro	POL-001-S-NEG	Bs 120
+M	Negro	POL-001-M-NEG	Bs 120
+L	Negro	POL-001-L-NEG	Bs 120
+M	Azul	POL-001-M-AZU	Bs 120
+
+
+Cada combinación vendible debe tener su propio registro de variante y su propio control de existencias.
+Importante: el inventario debe gestionarse por variante, no solamente por producto general.
+Funcionalidades
+- Crear y editar productos.
+- Administrar categorías y marcas.
+- Administrar tallas y colores.
+- Crear variantes.
+- Buscar por nombre, SKU o código de barras.
+- Filtrar por categoría y marca.
+- Consultar precios y costos.
+- Consultar existencias por sucursal.
+- Identificar productos inactivos.
+- Alertar sobre productos con stock bajo.
+- Importar productos mediante CSV o Excel, si se implementa la funcionalidad de importación.
+Evitar duplicar productos cuando únicamente cambia la talla o el color.
+8. Módulo de clientes
+Permitir registrar y administrar clientes.
+Datos
+- Nombre completo.
+- Tipo de documento.
+- Número de documento.
+- Teléfono.
+- Correo electrónico.
+- Dirección.
+- Fecha de registro.
+- Estado.
+- Observaciones.
+Funcionalidades
+- Registrar clientes.
+- Editar información.
+- Buscar por nombre o documento.
+- Consultar historial de compras.
+- Consultar total comprado.
+- Consultar fecha de última compra.
+- Consultar devoluciones.
+- Identificar clientes frecuentes.
+Permitir registrar ventas a clientes ocasionales sin obligar al vendedor a completar un formulario extenso.
+El documento y otros identificadores deben validarse según las reglas configuradas.
+9. Módulo de ventas
+Debe ser uno de los módulos más rápidos y sencillos de utilizar.
+La interfaz debe estar optimizada para vendedores que necesitan atender a varios clientes durante el día.
+Pantalla de ventas
+Mostrar:
+- Buscador de productos.
+- Búsqueda por código de barras.
+- Resultados compactos.
+- Nombre del producto.
+- Imagen pequeña opcional.
+- Talla y color.
+- Precio unitario.
+- Stock disponible.
+- Cantidad.
+- Subtotal por artículo.
+- Total de la venta.
+- Descuento autorizado.
+- Cliente.
+- Método de pago.
+- Botón para confirmar la venta.
+Permitir agregar productos rápidamente sin abandonar la pantalla de venta.
+Métodos de pago
+- Efectivo.
+- Transferencia bancaria.
+- QR.
+- Tarjeta.
+- Pago mixto, cuando corresponda.
+Los métodos de pago deben poder configurarse.
+Funcionalidades
+- Registrar ventas.
+- Agregar y quitar productos.
+- Modificar cantidades.
+- Aplicar descuentos autorizados.
+- Calcular subtotales.
+- Calcular descuentos.
+- Calcular total.
+- Registrar uno o varios pagos.
+- Generar un comprobante.
+- Consultar historial de ventas.
+- Buscar ventas por fecha.
+- Filtrar por vendedor.
+- Filtrar por sucursal.
+- Anular ventas según permisos.
+- Registrar devoluciones.
+- Consultar detalles de cada venta.
+Reglas de negocio
+1. No permitir vender más unidades de las disponibles.
+2. No permitir ventas con cantidades negativas o iguales a cero.
+3. Validar precios y descuentos en el servidor.
+4. Registrar el usuario responsable de la venta.
+5. Registrar la sucursal donde se realiza.
+6. Descontar el inventario únicamente cuando corresponda confirmar la operación.
+7. Registrar los movimientos de inventario generados por la venta.
+8. Registrar los cobros y movimientos de caja correspondientes.
+9. Evitar que una misma solicitud genere dos ventas por duplicación de clics o reintentos.
+10. No permitir modificar silenciosamente una venta confirmada.
+Las operaciones deben ejecutarse dentro de transacciones de base de datos.
+Cuando dos vendedores intenten vender simultáneamente las últimas unidades, utilizar mecanismos de concurrencia apropiados para evitar inventarios negativos.
+Comprobantes
+Generar un comprobante imprimible que incluya:
+- Nombre de la tienda.
+- Sucursal.
+- Número de venta.
+- Fecha y hora.
+- Vendedor.
+- Cliente, cuando corresponda.
+- Productos.
+- Tallas y colores.
+- Cantidades.
+- Precios.
+- Descuentos.
+- Total.
+- Métodos de pago.
+El formato fiscal debe adaptarse a los requisitos aplicables en Bolivia cuando corresponda.
+10. Módulo de inventario
+Permitir controlar las existencias de productos y variantes por sucursal.
+Información
+- Producto.
+- Variante.
+- Sucursal.
+- Cantidad disponible.
+- Stock mínimo.
+- Última actualización.
+El inventario debe estar separado de la información general del producto.
+Funcionalidades
+- Consultar existencias.
+- Filtrar por sucursal.
+- Filtrar por categoría.
+- Buscar por SKU.
+- Consultar stock por talla y color.
+- Identificar productos agotados.
+- Identificar productos con stock bajo.
+- Registrar entradas.
+- Registrar salidas autorizadas.
+- Realizar ajustes de inventario.
+- Consultar historial de movimientos.
+- Consultar valorización del inventario.
+Reglas
+- No modificar directamente el stock sin registrar el movimiento correspondiente.
+- Registrar el motivo de cada ajuste.
+- Registrar el usuario responsable.
+- Registrar la fecha y hora.
+- Mantener el historial de operaciones.
+- Evitar movimientos duplicados.
+- Utilizar transacciones para entradas, salidas y ajustes.
+El costo utilizado para valorar el inventario debe seguir un método definido, como promedio ponderado, FIFO u otro método configurado y adecuado al negocio.
+11. Módulo de movimientos de mercadería
+Este módulo administra los movimientos físicos de productos.
+Debe distinguirse de los movimientos financieros.
+Tipos de movimientos
+- Entrada por compra.
+- Salida por venta.
+- Devolución de cliente.
+- Devolución a proveedor.
+- Ajuste positivo.
+- Ajuste negativo.
+- Transferencia entre sucursales.
+- Otras operaciones autorizadas.
+Transferencias entre sucursales
+Permitir trasladar productos de una sucursal a otra.
+Ejemplo:
+Sucursal de origen: Central.
+Sucursal de destino: Sucursal Norte.
+Producto: Polera deportiva talla M, color negro.
+Cantidad: 10 unidades.
+Estados de una transferencia
+- Borrador.
+- Pendiente de envío.
+- En tránsito.
+- Recibida parcialmente.
+- Recibida.
+- Cancelada.
+La transferencia debe registrar:
+- Sucursal de origen.
+- Sucursal de destino.
+- Productos y variantes.
+- Cantidades enviadas.
+- Cantidades recibidas.
+- Usuario que prepara.
+- Usuario que despacha.
+- Usuario que recibe.
+- Fechas.
+- Observaciones.
+Reglas
+1. La sucursal de origen no puede transferir unidades que no tiene disponibles.
+2. La mercadería enviada debe quedar identificada como en tránsito o descontada del stock disponible de origen, según el diseño adoptado.
+3. La sucursal de destino no debe aumentar su stock hasta registrar la recepción correspondiente.
+4. Las diferencias deben quedar registradas.
+5. No permitir recibir dos veces la misma cantidad.
+6. Registrar todos los cambios de estado.
+7. Mantener trazabilidad completa de cada transferencia.
+Las transferencias no deben registrarse como ventas ni generar ingresos financieros.
+12. Módulo de caja
+Crear un sistema de cajas con turnos de apertura y cierre.
+Cada caja debe estar asociada a una sucursal.
+Apertura de caja
+Registrar:
+- Sucursal.
+- Usuario responsable.
+- Fecha y hora.
+- Saldo inicial.
+- Observaciones.
+Durante el turno
+Registrar:
+- Cobros de ventas.
+- Ingresos de efectivo.
+- Egresos autorizados.
+- Retiros de efectivo.
+- Otros movimientos de caja.
+Cada movimiento debe identificar su origen.
+Por ejemplo, un cobro por una venta debe estar relacionado con la venta correspondiente.
+Cierre de caja
+Mostrar:
+- Saldo inicial.
+- Total de ventas en efectivo.
+- Total de cobros por otros medios.
+- Ingresos adicionales.
+- Egresos.
+- Retiros.
+- Efectivo esperado.
+- Efectivo contado.
+- Diferencia.
+- Usuario responsable.
+- Fecha y hora del cierre.
+Reglas
+- No permitir dos turnos abiertos simultáneamente para el mismo recurso de caja cuando el diseño establezca una sola sesión activa.
+- No permitir movimientos ordinarios en una caja cerrada.
+- Registrar quién abre y quién cierra.
+- No permitir modificar un cierre sin autorización y trazabilidad.
+- Diferenciar ventas de ingresos adicionales.
+- Diferenciar pagos electrónicos del efectivo físico.
+- No sumar transferencias bancarias al efectivo esperado en caja.
+- Registrar diferencias de caja para su posterior revisión.
+Debe existir un historial de aperturas, movimientos y cierres.
+13. Módulo de ingresos y egresos
+Administrar las entradas y salidas de dinero del negocio.
+Este módulo debe estar relacionado con caja, ventas y otras operaciones financieras, sin duplicar sus registros.
+Ingresos
+Ejemplos:
+- Aportes de capital.
+- Otros ingresos.
+- Recuperación de anticipos.
+- Ingresos extraordinarios.
+Los cobros de ventas deben originarse en el módulo de ventas, no registrarse nuevamente como ingresos manuales.
+Egresos
+Ejemplos:
+- Alquiler.
+- Servicios básicos.
+- Transporte.
+- Limpieza.
+- Material de oficina.
+- Mantenimiento.
+- Otros gastos operativos.
+Datos de cada operación
+- Número de operación.
+- Tipo: ingreso o egreso.
+- Categoría.
+- Concepto.
+- Importe.
+- Fecha.
+- Sucursal.
+- Medio de pago.
+- Caja o cuenta de destino, según corresponda.
+- Usuario responsable.
+- Observaciones.
+- Comprobante adjunto opcional.
+- Estado.
+Reglas
+- No permitir importes negativos.
+- Registrar quién crea y quién autoriza la operación.
+- Permitir definir límites de autorización.
+- No modificar operaciones confirmadas sin dejar trazabilidad.
+- Registrar anulaciones mediante operaciones controladas.
+- Relacionar los movimientos con caja cuando se utilice efectivo.
+- Permitir operaciones bancarias sin afectar el efectivo físico de caja.
+Los movimientos financieros deben ser consistentes con los cobros, pagos y cierres de caja.
+14. Módulo de reportes
+Crear un panel de reportes con filtros claros y resultados compactos.
+Los reportes deben respetar los permisos y las sucursales autorizadas del usuario.
+Dashboard principal
+Mostrar indicadores relevantes:
+- Ventas del día.
+- Ventas del mes.
+- Número de ventas.
+- Ticket promedio.
+- Productos más vendidos.
+- Productos con stock bajo.
+- Productos agotados.
+- Inventario valorizado.
+- Ingresos y egresos.
+- Estado de las cajas.
+- Comparación de ventas por sucursal.
+No mostrar información financiera sensible a usuarios que no tengan autorización.
+Reportes de ventas
+- Ventas por día.
+- Ventas por período.
+- Ventas por sucursal.
+- Ventas por vendedor.
+- Ventas por producto.
+- Ventas por categoría.
+- Ventas por marca.
+- Ventas por talla y color.
+- Ventas por método de pago.
+- Descuentos aplicados.
+- Devoluciones y anulaciones.
+Reportes de inventario
+- Stock actual.
+- Stock por sucursal.
+- Stock por variante.
+- Productos agotados.
+- Productos con stock bajo.
+- Movimientos de inventario.
+- Transferencias entre sucursales.
+- Ajustes realizados.
+- Valorización del inventario.
+Reportes financieros
+- Ingresos por período.
+- Egresos por período.
+- Egresos por categoría.
+- Resumen de caja.
+- Diferencias de caja.
+- Ventas por método de pago.
+- Resumen de movimientos financieros.
+Exportaciones
+Cuando corresponda, permitir exportar a:
+- Excel.
+- CSV.
+- PDF.
+Los reportes deben calcular los resultados desde los datos registrados, evitando almacenar totales redundantes que puedan quedar desactualizados.
+15. Auditoría e historial
+Crear un módulo de auditoría para registrar las operaciones relevantes del sistema.
+Eventos auditables
+- Inicio de sesión.
+- Creación y modificación de productos.
+- Cambios de precios.
+- Cambios de permisos.
+- Ventas confirmadas.
+- Anulaciones.
+- Devoluciones.
+- Ajustes de inventario.
+- Transferencias.
+- Aperturas y cierres de caja.
+- Ingresos y egresos.
+- Cambios de configuración.
+Información del registro
+- Usuario.
+- Tipo de operación.
+- Fecha y hora.
+- Entidad afectada.
+- Identificador del registro.
+- Datos relevantes del cambio.
+- Motivo, cuando corresponda.
+No almacenar contraseñas ni otros secretos en los registros de auditoría.
+Las operaciones históricas deben conservarse conforme a una política de retención y a las obligaciones legales aplicables.
+16. Reglas generales de negocio
+Estas reglas deben aplicarse a todos los módulos.
+Integridad de datos
+- Utilizar claves foráneas.
+- Definir restricciones de base de datos cuando corresponda.
+- Validar los datos en los formularios y en el servidor.
+- Evitar registros duplicados.
+- Definir índices para campos de búsqueda frecuentes.
+- Usar DecimalField para importes monetarios.
+- No utilizar números de punto flotante para dinero.
+Operaciones críticas
+Utilizar transaction.atomic() en operaciones que involucren varios registros relacionados.
+Aplicar mecanismos de bloqueo apropiados cuando varias operaciones puedan modificar simultáneamente el mismo inventario.
+Historial
+No eliminar físicamente registros que formen parte de ventas confirmadas, movimientos financieros o auditorías.
+Para estos casos, utilizar estados, anulaciones controladas y registros compensatorios.
+Multiempresa y multisucursal
+El sistema debe admitir varias sucursales pertenecientes al mismo negocio.
+La información comercial y financiera debe quedar asociada a su sucursal correspondiente.
+El diseño debe permitir incorporar una estructura multiempresa en el futuro, pero no es necesario implementar esa complejidad desde la primera versión si el negocio solo tiene una empresa.
+17. Rendimiento y optimización
+La aplicación debe funcionar correctamente con miles de productos, múltiples sucursales y un historial creciente de ventas.
+Aplicar buenas prácticas:
+- Usar select_related() y prefetch_related() cuando corresponda.
+- Evitar consultas repetitivas dentro de ciclos.
+- Implementar paginación en tablas.
+- Filtrar datos desde la base de datos.
+- Utilizar índices en campos de búsqueda frecuentes.
+- Optimizar las consultas de reportes.
+- Evitar cargar todo el inventario en el navegador.
+- Utilizar búsquedas AJAX cuando aporten mejoras reales.
+- Cargar imágenes optimizadas.
+- Evitar dependencias JavaScript innecesarias.
+No optimizar prematuramente mediante una arquitectura excesivamente compleja.
+Primero garantizar un diseño correcto y medible.
+18. Pruebas automatizadas
+Implementar pruebas utilizando el sistema de testing de Django.
+Usuarios y permisos
+- Usuario sin autorización.
+- Acceso a sucursales no permitidas.
+- Intentos de acceder a operaciones restringidas.
+- Usuarios inactivos.
+Productos
+- Creación de productos.
+- Creación de variantes.
+- Validación de SKU.
+- Validación de precios.
+Inventario
+- Entradas y salidas.
+- Stock insuficiente.
+- Ajustes.
+- Transferencias.
+- Recepciones parciales.
+- Prevención de stock negativo.
+- Operaciones concurrentes.
+Ventas
+- Venta correcta.
+- Descuento autorizado.
+- Pago mixto.
+- Stock insuficiente.
+- Anulación.
+- Devolución.
+- Prevención de ventas duplicadas.
+Caja y finanzas
+- Apertura.
+- Cierre.
+- Diferencias.
+- Ingresos.
+- Egresos.
+- Coherencia entre cobros y caja.
+- Prevención de operaciones en cajas cerradas.
+No considerar un módulo terminado hasta que sus pruebas principales funcionen.
+19. Plan de desarrollo por etapas
+Desarrollar la aplicación mediante entregas incrementales.
+No intentar construir todos los módulos en una única respuesta ni generar cientos de archivos sin comprobar su funcionamiento.
+Fase 1. Fundamentos
+- Crear el proyecto Django.
+- Configurar los entornos.
+- Configurar PostgreSQL y el entorno local.
+- Crear la aplicación core.
+- Crear la plantilla principal.
+- Diseñar el menú lateral.
+- Diseñar la barra superior.
+- Implementar autenticación.
+- Crear el sistema de usuarios y permisos.
+- Establecer las convenciones del proyecto.
+Resultado: una aplicación funcional con autenticación y una interfaz base.
+Fase 2. Sucursales y productos
+- Crear sucursales.
+- Crear categorías.
+- Crear marcas.
+- Crear tallas.
+- Crear colores.
+- Crear productos.
+- Crear variantes.
+- Implementar búsquedas.
+- Implementar formularios.
+- Crear pruebas.
+Resultado: catálogo comercial completo.
+Fase 3. Inventario
+- Crear existencias por sucursal.
+- Crear movimientos de inventario.
+- Implementar entradas.
+- Implementar salidas.
+- Implementar ajustes.
+- Implementar transferencias.
+- Implementar recepciones.
+- Crear historial.
+- Crear pruebas de integridad.
+Resultado: inventario independiente y trazable por sucursal.
+Fase 4. Clientes y ventas
+- Crear clientes.
+- Diseñar la interfaz de ventas.
+- Implementar búsqueda de productos.
+- Implementar carrito.
+- Implementar descuentos.
+- Implementar pagos.
+- Generar comprobantes.
+- Descontar inventario.
+- Registrar devoluciones y anulaciones.
+- Crear pruebas.
+Resultado: módulo de ventas operativo.
+Fase 5. Caja
+- Crear recursos de caja.
+- Implementar aperturas.
+- Registrar cobros.
+- Registrar movimientos.
+- Implementar cierres.
+- Calcular diferencias.
+- Crear historial.
+- Crear pruebas.
+Resultado: control de caja por sucursal y turno.
+Fase 6. Ingresos y egresos
+- Crear categorías.
+- Registrar ingresos.
+- Registrar egresos.
+- Implementar autorizaciones.
+- Relacionar movimientos con caja o cuentas.
+- Implementar historial.
+- Crear pruebas.
+Resultado: control de movimientos financieros.
+Fase 7. Reportes
+- Crear dashboard.
+- Implementar reportes de ventas.
+- Implementar reportes de inventario.
+- Implementar reportes financieros.
+- Agregar filtros.
+- Agregar exportaciones.
+Resultado: información útil para la toma de decisiones.
+Fase 8. Auditoría y seguridad
+- Completar registros de auditoría.
+- Revisar permisos.
+- Revisar aislamiento entre sucursales.
+- Validar operaciones concurrentes.
+- Revisar seguridad.
+- Optimizar consultas.
+- Ejecutar pruebas de regresión.
+Resultado: aplicación preparada para pruebas de aceptación.
+Fase 9. Despliegue
+- Configurar variables de entorno.
+- Configurar PostgreSQL de producción.
+- Configurar archivos estáticos y multimedia.
+- Preparar Docker, si se utiliza.
+- Configurar HTTPS.
+- Configurar copias de seguridad.
+- Preparar procedimiento de restauración.
+- Documentar el despliegue.
+Resultado: sistema listo para desplegar en un servidor.
+20. Instrucciones para generar el código
+Debes trabajar como un desarrollador que mantiene un proyecto real, no como un generador de ejemplos aislados.
+Antes de implementar cada fase:
+1. Analiza la estructura actual del proyecto.
+2. Identifica los archivos existentes.
+3. Reutiliza los componentes que ya funcionan.
+4. Verifica las dependencias entre aplicaciones.
+5. Define los modelos y las relaciones necesarias.
+6. Identifica las reglas de negocio.
+7. Implementa el módulo.
+8. Genera las migraciones.
+9. Ejecuta las comprobaciones de Django.
+10. Ejecuta las pruebas correspondientes.
+11. Corrige los errores encontrados.
+12. Documenta los cambios realizados.
+Reglas de implementación
+- Proporcionar código completo para los archivos que deban crearse o modificarse.
+- No utilizar fragmentos incompletos cuando se solicite implementar un archivo.
+- No utilizar comentarios como sustitutos de código pendiente.
+- No inventar nombres de modelos, campos o URLs sin verificar el contexto existente.
+- Mantener coherencia entre modelos, formularios, vistas, URLs y plantillas.
+- Utilizar nombres de URL mediante name.
+- Utilizar el sistema de mensajes de Django cuando corresponda.
+- Proteger las vistas con autenticación y permisos.
+- Utilizar formularios de Django para validar las entradas.
+- Evitar consultas innecesarias.
+- Mantener la interfaz en español.
+- Mantener el código en inglés.
+- Documentar las decisiones arquitectónicas importantes.
+Validaciones obligatorias
+Después de implementar cada fase, ejecutar:
+python manage.py check
+
+Después de modificar los modelos:
+python manage.py makemigrations
+python manage.py migrate
+
+Ejecutar las pruebas:
+python manage.py test
+
+Si existen errores, resolverlos antes de continuar.
+No declarar que una funcionalidad está terminada si no se ha implementado y comprobado.
+21. Primera tarea que debes ejecutar
+Comienza por la Fase 1: Fundamentos del proyecto.
+No desarrolles todos los módulos de una sola vez.
+Primero, presenta:
+1. La arquitectura definitiva del proyecto.
+2. La estructura de directorios.
+3. Las aplicaciones Django que se crearán.
+4. Las dependencias entre aplicaciones.
+5. Los modelos iniciales y sus relaciones.
+6. La estrategia de usuarios, roles y permisos.
+7. El diseño visual de la plantilla principal.
+8. Los comandos necesarios para crear el proyecto.
+9. El código completo de los archivos correspondientes a esta primera fase.
+10. Las pruebas y los comandos para verificar que funciona.
+La interfaz inicial debe incluir:
+- Inicio de sesión.
+- Menú lateral contraíble.
+- Barra superior.
+- Selector de sucursal según permisos.
+- Área de contenido.
+- Perfil de usuario.
+- Cierre de sesión.
+- Dashboard inicial con indicadores de ejemplo claramente identificados como datos de demostración.
+No crear datos comerciales ficticios que puedan confundirse con información real.
+Al finalizar la primera fase, espera mi aprobación antes de continuar con la siguiente.
+Recomendaciones adicionales para tu tienda
+Hay cinco decisiones de diseño que te recomiendo mantener desde el principio.
+Decisión	Recomendación
+Gestión de productos	Separar el producto general de sus variantes por talla y color.
+Inventario	Controlar las existencias por variante y sucursal.
+Ventas	Crear un proceso rápido de venta con búsqueda por código de barras.
+Caja	Separar el turno de caja de los movimientos financieros generales.
+Arquitectura	Mantener módulos independientes, pero relacionados mediante claves foráneas y servicios de negocio.
+
+
+Tres aspectos que no debes descuidar
+1. Las tallas y los colores
+No conviene registrar una camiseta negra talla M como un producto totalmente independiente de la camiseta negra talla L. Es preferible tener un producto general y variantes con SKU propio.
+Esto simplifica las búsquedas, el control de stock y los reportes.
+2. Los traspasos entre sucursales
+Una transferencia no es una venta. Debe mantener la trazabilidad de las unidades enviadas, recibidas y pendientes de recepción.
+3. La diferencia entre ventas, caja e ingresos
+Son conceptos relacionados, pero no equivalentes.
+Por ejemplo, una venta de Bs 200 pagada mediante QR aumenta las ventas y genera un cobro, pero no aumenta el efectivo físico de la caja. El sistema debe distinguir correctamente estos movimientos para evitar descuadres.
+Mi recomendación final
+Para este proyecto utilizaría Django + PostgreSQL + Bootstrap 5, con vistas basadas en funciones y una arquitectura modular.
+Priorizaría el siguiente orden de desarrollo:
+1. Usuarios y sucursales.
+2. Productos, tallas y colores.
+3. Inventario.
+4. Ventas.
+5. Caja.
+6. Ingresos y egresos.
+7. Reportes.
+De esa manera, cada módulo se construye sobre una base funcional y comprobada.
+Un último consejo: antes de comenzar a generar código, define que la aplicación tendrá una única fuente de verdad para el inventario y otra para los movimientos financieros. Las ventas, transferencias, devoluciones y ajustes deben actualizar esos registros mediante operaciones controladas. Esta decisión evitará muchos problemas cuando el sistema comience a utilizarse en varias sucursales.

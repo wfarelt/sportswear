@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block page_heading %}{{ page_title }}{% endblock %}
+{% block content %}
+<div class="page-intro module-intro"><div><div class="eyebrow">CATÁLOGO COMERCIAL</div><h1>{{ page_title }}</h1><p>El producto agrupa las variantes que se venden por separado.</p></div></div>
+<section class="content-panel form-panel wide-form"><form method="post" enctype="multipart/form-data" novalidate>{% csrf_token %}
+{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+<div class="form-section-title"><i class="bi bi-card-text"></i> Información general</div><div class="form-grid">{% for field in form %}{% if field.name in 'internal_code name description category brand' %}<div class="form-field {% if field.name == 'description' %}span-2{% endif %}"><label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}</div>{% endif %}{% endfor %}</div>
+<div class="form-section-title mt-4"><i class="bi bi-currency-exchange"></i> Precios e impuestos <span>Montos en bolivianos (Bs)</span></div><div class="form-grid">{% for field in form %}{% if field.name in 'cost sale_price promotional_price tax_rate' %}<div class="form-field"><label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}</div>{% endif %}{% endfor %}</div>
+<div class="form-grid mt-4">{% for field in form %}{% if field.name == 'image' %}<div class="form-field"><label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}</div>{% elif field.name == 'is_active' %}<div class="form-field checkbox-field align-self-end"><label class="form-check-label" for="{{ field.id_for_label }}">{{ field }} {{ field.label }}</label></div>{% endif %}{% endfor %}</div>
+<div class="form-actions"><a class="btn btn-light" href="{% if product %}{% url 'products:detail' product.pk %}{% else %}{% url 'products:list' %}{% endif %}">Cancelar</a><button class="btn btn-primary" type="submit">Guardar producto</button></div></form></section>
+{% endblock %}

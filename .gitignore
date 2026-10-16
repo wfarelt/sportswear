@@ -60,7 +60,10 @@ cover/
 *.log
 local_settings.py
 db.sqlite3
+sportswear.sqlite3
 db.sqlite3-journal
+staticfiles/
+media/
 
 # Flask stuff:
 instance/

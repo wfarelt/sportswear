@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Iniciar sesión{% endblock %}
+{% block public_content %}
+<div class="auth-page">
+  <div class="auth-brand"><span class="brand-mark"><i class="bi bi-lightning-charge-fill"></i></span><span class="brand-name">SPORT<span>WEAR</span><small>GESTIÓN COMERCIAL</small></span></div>
+  <main class="auth-card">
+    <div class="auth-symbol"><i class="bi bi-person-lock"></i></div>
+    <div class="eyebrow">ACCESO AL SISTEMA</div>
+    <h1>Bienvenido</h1>
+    <p class="auth-subtitle">Ingresa con tu cuenta para continuar.</p>
+    {% if form.errors %}<div class="alert alert-danger py-2">Usuario o contraseña incorrectos. Verifica tus datos e intenta nuevamente.</div>{% endif %}
+    {% if next and user.is_authenticated %}<div class="alert alert-warning py-2">Tu cuenta no tiene permiso para acceder a esa página.</div>{% endif %}
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="mb-3"><label class="form-label" for="id_username">Usuario</label><div class="input-with-icon"><i class="bi bi-person"></i>{{ form.username }}</div></div>
+      <div class="mb-4"><label class="form-label" for="id_password">Contraseña</label><div class="input-with-icon"><i class="bi bi-lock"></i>{{ form.password }}</div></div>
+      <button type="submit" class="btn btn-primary auth-submit">Iniciar sesión <i class="bi bi-arrow-right ms-2"></i></button>
+    </form>
+    <a class="auth-forgot" href="{% url 'accounts:password_reset' %}">¿Olvidaste tu contraseña?</a>
+    <div class="auth-help"><i class="bi bi-shield-check"></i> Acceso protegido para usuarios autorizados</div>
+  </main>
+  <div class="auth-footer">Sportswear · Sistema de gestión</div>
+</div>
+{% endblock %}

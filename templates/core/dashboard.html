@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}Panel principal{% endblock %}
+{% block page_heading %}Panel principal{% endblock %}
+{% block content %}
+<section class="page-intro">
+  <div>
+    <div class="eyebrow">RESUMEN DEL NEGOCIO</div>
+    <h1>Buen día, {{ user.first_name|default:user.username }} <span class="wave">✦</span></h1>
+    <p>Este es el punto de partida para administrar tu tienda.</p>
+  </div>
+  <div class="date-chip"><i class="bi bi-calendar3"></i><span>{% now "j F Y" %}</span></div>
+</section>
+
+<div class="demo-notice"><i class="bi bi-info-circle-fill"></i><div><strong>Vista de demostración</strong><span>Los valores de ejemplo no representan operaciones ni datos reales. Los indicadores se conectarán a los módulos en las siguientes fases.</span></div><span class="demo-pill">DEMO</span></div>
+
+<section class="metrics-grid" aria-label="Indicadores de ejemplo">
+  <article class="metric-card"><div class="metric-top"><span>Ventas de hoy</span><span class="metric-icon violet"><i class="bi bi-receipt"></i></span></div><div class="metric-value">Bs 0,00</div><div class="metric-foot"><span class="demo-label">EJEMPLO · NO REAL</span><span class="metric-note">Total diario</span></div></article>
+  <article class="metric-card"><div class="metric-top"><span>Número de ventas</span><span class="metric-icon blue"><i class="bi bi-bag-check"></i></span></div><div class="metric-value">0</div><div class="metric-foot"><span class="demo-label">EJEMPLO · NO REAL</span><span class="metric-note">Hoy</span></div></article>
+  <article class="metric-card"><div class="metric-top"><span>Ticket promedio</span><span class="metric-icon orange"><i class="bi bi-receipt-cutoff"></i></span></div><div class="metric-value">Bs 0,00</div><div class="metric-foot"><span class="demo-label">EJEMPLO · NO REAL</span><span class="metric-note">Promedio diario</span></div></article>
+  <article class="metric-card"><div class="metric-top"><span>Stock bajo</span><span class="metric-icon green"><i class="bi bi-box-seam"></i></span></div><div class="metric-value">—</div><div class="metric-foot"><span class="demo-label">SIN INVENTARIO</span><span class="metric-note">Se habilitará después</span></div></article>
+</section>
+
+<section class="dashboard-grid">
+  <article class="content-panel sales-panel">
+    <div class="panel-heading"><div><h2>Actividad de ventas</h2><p>Resumen de actividad comercial</p></div><span class="coming-soon"><i class="bi bi-hourglass-split"></i> Próximamente</span></div>
+    <div class="empty-chart"><div class="empty-chart-icon"><i class="bi bi-graph-up-arrow"></i></div><strong>Aún no hay actividad para mostrar</strong><span>El gráfico se habilitará cuando se implemente el módulo de ventas.</span></div>
+  </article>
+  <article class="content-panel quick-panel">
+    <div class="panel-heading"><div><h2>Accesos rápidos</h2><p>Herramientas disponibles</p></div></div>
+    <a class="quick-link" href="{% url 'admin:index' %}"><span class="quick-icon"><i class="bi bi-person-gear"></i></span><span><strong>Administración</strong><small>Usuarios, permisos y sucursales</small></span><i class="bi bi-arrow-up-right"></i></a>
+    <div class="quick-link muted"><span class="quick-icon"><i class="bi bi-upc-scan"></i></span><span><strong>Registrar venta</strong><small>Disponible en una fase posterior</small></span><i class="bi bi-lock"></i></div>
+    <div class="quick-link muted"><span class="quick-icon"><i class="bi bi-boxes"></i></span><span><strong>Consultar inventario</strong><small>Disponible en una fase posterior</small></span><i class="bi bi-lock"></i></div>
+  </article>
+</section>
+{% endblock %}
