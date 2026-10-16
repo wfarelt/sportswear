@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Transferencia TR-{{ transfer.pk }}{% endblock %}
+{% block page_heading %}Detalle de transferencia{% endblock %}
+{% block content %}
+<div class="page-intro module-intro">
+  <div><div class="eyebrow">TRANSFERENCIA ENTRE SUCURSALES</div><h1>TR-{{ transfer.pk }} <span class="transfer-status {{ transfer.status }}">{{ transfer.get_status_display }}</span></h1><p>{{ transfer.origin.name }} <i class="bi bi-arrow-right mx-1"></i> {{ transfer.destination.name }}</p></div>
+  <div class="intro-actions">
+    <a class="btn btn-light btn-sm" href="{% url 'inventory:transfer_list' %}"><i class="bi bi-arrow-left me-1"></i>Transferencias</a>
+    {% if can_submit %}<form method="post" action="{% url 'inventory:transfer_submit' transfer.pk %}">{% csrf_token %}<button class="btn btn-outline-primary btn-sm" type="submit">Enviar a despacho</button></form>{% endif %}
+    {% if can_dispatch %}<form method="post" action="{% url 'inventory:transfer_dispatch' transfer.pk %}">{% csrf_token %}{{ dispatch_form.idempotency_key }}<button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-truck me-1"></i>Despachar mercadería</button></form>{% endif %}
+    {% if can_receive %}<a class="btn btn-primary btn-sm" href="{% url 'inventory:transfer_receive' transfer.pk %}"><i class="bi bi-box-arrow-in-down me-1"></i>Registrar recepción</a>{% endif %}
+    {% if can_cancel %}<form method="post" action="{% url 'inventory:transfer_cancel' transfer.pk %}">{% csrf_token %}<button class="btn btn-outline-danger btn-sm" type="submit">Cancelar</button></form>{% endif %}
+  </div>
+</div>
+<section class="transfer-metrics"><div class="content-panel"><span>Solicitadas</span><strong>{{ transfer.quantity_requested }}</strong></div><div class="content-panel"><span>Enviadas</span><strong>{{ transfer.quantity_sent }}</strong></div><div class="content-panel"><span>Recibidas</span><strong>{{ transfer.quantity_received }}</strong></div><div class="content-panel"><span>Diferencia faltante</span><strong>{{ transfer.quantity_missing }}</strong></div></section>
+<section class="content-panel transfer-meta">
+  <div><span>Preparada por</span><strong>{{ transfer.created_by.get_full_name|default:transfer.created_by.username }}</strong><small>{{ transfer.created_at|date:'d/m/Y H:i' }}</small></div>
+  <div><span>Despachada por</span>{% if transfer.dispatched_by %}<strong>{{ transfer.dispatched_by.get_full_name|default:transfer.dispatched_by.username }}</strong><small>{{ transfer.dispatched_at|date:'d/m/Y H:i' }}</small>{% else %}<strong>Pendiente</strong>{% endif %}</div>
+  <div><span>Recibida por</span>{% if transfer.received_by %}<strong>{{ transfer.received_by.get_full_name|default:transfer.received_by.username }}</strong>{% if transfer.received_at %}<small>{{ transfer.received_at|date:'d/m/Y H:i' }}</small>{% endif %}{% else %}<strong>Pendiente</strong>{% endif %}</div>
+  <div><span>Observaciones</span><strong>{{ transfer.notes|default:'—' }}</strong></div>
+</section>
+<section class="content-panel table-panel mt-3"><div class="panel-heading"><div><h2>Detalle de mercadería</h2><p>El stock de destino aumenta solo con recepciones confirmadas.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>Producto / variante</th><th>SKU</th><th>Solicitadas</th><th>Enviadas</th><th>Recibidas</th><th>Faltantes</th></tr></thead><tbody>{% for line in transfer.lines.all %}<tr><td>{{ line.variant.product.name }}<small class="table-subtext">{{ line.variant.size|default:'—' }} · {{ line.variant.color|default:'—' }}</small></td><td>{{ line.variant.sku }}</td><td>{{ line.quantity_requested }}</td><td>{{ line.quantity_sent }}</td><td>{{ line.quantity_received }}</td><td>{{ line.quantity_missing }}</td></tr>{% empty %}<tr><td colspan="6">Sin líneas registradas.</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="content-panel transfer-history mt-3"><div class="panel-heading"><div><h2>Historial de estados</h2><p>Trazabilidad de preparación, despacho y recepción.</p></div></div><div class="event-list">{% for event in transfer.events.all %}<div class="event-row"><span class="event-dot"></span><div><strong>{{ event.get_to_status_display }}</strong><p>{{ event.details|default:'Cambio de estado registrado.' }}</p><small>{{ event.user.get_full_name|default:event.user.username }} · {{ event.created_at|date:'d/m/Y H:i' }}</small></div></div>{% endfor %}</div></section>
+<div class="inventory-note mt-3"><i class="bi bi-info-circle"></i> Las transferencias solo afectan existencias y su historial; no son ventas ni generan ingresos financieros.</div>
+{% endblock %}

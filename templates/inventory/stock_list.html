@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Inventario{% endblock %}
+{% block page_heading %}Inventario{% endblock %}
+{% block content %}
+<div class="page-intro module-intro">
+  <div><div class="eyebrow">CONTROL POR SUCURSAL</div><h1>Inventario</h1><p>Existencias por variante, historial auditable y costo promedio ponderado.</p></div>
+  <div class="intro-actions">
+    {% if can_view_movements %}<a class="btn btn-light btn-sm" href="{% url 'inventory:movement_list' %}"><i class="bi bi-clock-history me-1"></i>Historial</a>{% endif %}
+    {% if can_manage_transfers %}<a class="btn btn-light btn-sm" href="{% url 'inventory:transfer_list' %}"><i class="bi bi-arrow-left-right me-1"></i>Transferencias</a>{% endif %}
+    {% if can_add_operations %}<a class="btn btn-light btn-sm" href="{% url 'inventory:adjustment_create' %}"><i class="bi bi-sliders me-1"></i>Ajuste</a><a class="btn btn-light btn-sm" href="{% url 'inventory:issue_create' %}"><i class="bi bi-box-arrow-up-right me-1"></i>Salida</a><a class="btn btn-primary btn-sm" href="{% url 'inventory:receipt_create' %}"><i class="bi bi-plus-lg me-1"></i>Entrada</a>{% endif %}
+  </div>
+</div>
+<form class="inventory-filter content-panel" method="get">
+  <div><label for="branchFilter">Sucursal</label><select id="branchFilter" class="form-select" name="branch"><option value="">Selecciona sucursal</option>{% for branch in branches %}<option value="{{ branch.pk }}" {% if selected_branch.pk == branch.pk %}selected{% endif %}>{{ branch.name }}</option>{% endfor %}</select></div>
+  <div class="inventory-search"><label for="stockSearch">Buscar</label><input id="stockSearch" class="form-control" type="search" name="q" value="{{ query }}" placeholder="Producto, código, SKU o barras"></div>
+  <div><label for="categoryFilter">Categoría</label><select id="categoryFilter" class="form-select" name="category"><option value="">Todas</option>{% for category in categories %}<option value="{{ category.pk }}" {% if category_id == category.pk|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
+  <div><label for="stockStatus">Estado</label><select id="stockStatus" class="form-select" name="status"><option value="all" {% if status == 'all' %}selected{% endif %}>Todos</option><option value="low" {% if status == 'low' %}selected{% endif %}>Stock bajo</option><option value="out" {% if status == 'out' %}selected{% endif %}>Agotados</option></select></div>
+  <button class="btn btn-outline-secondary btn-sm" type="submit"><i class="bi bi-search me-1"></i>Filtrar</button>
+</form>
+<div class="inventory-summary"><span>{% if selected_branch %}<i class="bi bi-geo-alt"></i> {{ selected_branch.name }}{% else %}<i class="bi bi-info-circle"></i> Selecciona una sucursal autorizada{% endif %}</span><span>Valorización actual: <strong>Bs {{ inventory_value|floatformat:2 }}</strong> <small>· promedio ponderado</small></span></div>
+<section class="content-panel table-panel">
+  <div class="table-responsive"><table class="table data-table align-middle inventory-table">
+    <thead><tr><th>Producto / variante</th><th>Código SKU</th><th>Existencias</th><th>Mínimo</th><th>Costo promedio</th><th>Valorización</th><th>Actualizado</th><th>Estado</th></tr></thead>
+    <tbody>
+      {% for stock in stock_levels %}
+      <tr>
+        <td><strong>{{ stock.variant.product.name }}</strong><small class="table-subtext">{{ stock.variant.size|default:'—' }}{% if stock.variant.color %} · {{ stock.variant.color.name }}{% endif %} · {{ stock.variant.product.category.name }}</small></td>
+        <td><strong>{{ stock.variant.sku }}</strong><small class="table-subtext">{{ stock.variant.barcode|default:'Sin código de barras' }}</small></td>
+        <td><strong>{{ stock.quantity }}</strong></td>
+        <td>{% if can_change_stock %}<form class="minimum-form" method="post" action="{% url 'inventory:stock_minimum' stock.pk %}">{% csrf_token %}<input type="number" min="0" name="minimum_quantity" value="{{ stock.minimum_quantity }}" aria-label="Stock mínimo de {{ stock.variant.sku }}"><button class="table-action" type="submit" aria-label="Guardar stock mínimo"><i class="bi bi-check2"></i></button></form>{% else %}{{ stock.minimum_quantity }}{% endif %}</td>
+        <td>Bs {{ stock.average_cost|floatformat:2 }}</td><td>Bs {{ stock.inventory_value|floatformat:2 }}</td><td>{{ stock.updated_at|date:'d/m/Y H:i' }}</td>
+        <td>{% if stock.quantity == 0 %}<span class="status-badge inactive">Agotado</span>{% elif stock.is_low_stock %}<span class="status-badge warning">Stock bajo</span>{% else %}<span class="status-badge active">Disponible</span>{% endif %}</td>
+      </tr>
+      {% empty %}<tr><td colspan="8"><div class="table-empty"><i class="bi bi-boxes"></i><strong>{% if selected_branch %}No hay existencias registradas{% else %}Selecciona una sucursal{% endif %}</strong><span>{% if selected_branch %}Registra una entrada inicial o revisa los filtros aplicados.{% else %}Solo se mostrarán sucursales autorizadas para tu usuario.{% endif %}</span></div></td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <div class="table-foot"><span>{{ page_obj.paginator.count }} registro{{ page_obj.paginator.count|pluralize:'s' }}</span>{% if page_obj.has_other_pages %}<nav aria-label="Paginación"><ul class="pagination pagination-sm mb-0">{% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?branch={{ selected_branch.pk }}&q={{ query|urlencode }}&category={{ category_id }}&status={{ status }}&page={{ page_obj.previous_page_number }}">Anterior</a></li>{% endif %}<li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>{% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?branch={{ selected_branch.pk }}&q={{ query|urlencode }}&category={{ category_id }}&status={{ status }}&page={{ page_obj.next_page_number }}">Siguiente</a></li>{% endif %}</ul></nav>{% endif %}</div>
+</section>
+{% endblock %}

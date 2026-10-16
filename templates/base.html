@@ -11,6 +11,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="{% static 'css/app.css' %}" rel="stylesheet">
   <link href="{% static 'css/catalog.css' %}" rel="stylesheet">
+  <link href="{% static 'css/inventory.css' %}" rel="stylesheet">
   {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -27,8 +28,8 @@
       <div class="nav-section-title">OPERACIONES</div>
       <span class="nav-item disabled"><i class="bi bi-receipt"></i><span>Ventas</span><small>Pronto</small></span>
       {% if perms.products.view_product or user.is_superuser %}<a class="nav-item {% if request.resolver_match.app_name == 'products' %}active{% endif %}" href="{% url 'products:list' %}"><i class="bi bi-box-seam"></i><span>Productos</span></a>{% else %}<span class="nav-item disabled"><i class="bi bi-box-seam"></i><span>Productos</span><small>Pronto</small></span>{% endif %}
-      <span class="nav-item disabled"><i class="bi bi-boxes"></i><span>Inventario</span><small>Pronto</small></span>
-      <span class="nav-item disabled"><i class="bi bi-arrow-left-right"></i><span>Movimientos</span><small>Pronto</small></span>
+      {% if perms.inventory.view_stocklevel or user.is_superuser %}<a class="nav-item {% if request.resolver_match.app_name == 'inventory' and request.resolver_match.url_name == 'stock_list' %}active{% endif %}" href="{% url 'inventory:stock_list' %}"><i class="bi bi-boxes"></i><span>Inventario</span></a>{% endif %}
+        {% if perms.inventory.view_inventoryoperation or user.is_superuser %}<a class="nav-item {% if request.resolver_match.app_name == 'inventory' and request.resolver_match.url_name != 'stock_list' and request.resolver_match.url_name != 'transfer_list' %}active{% endif %}" href="{% url 'inventory:movement_list' %}"><i class="bi bi-arrow-left-right"></i><span>Movimientos</span></a>{% elif perms.inventory.view_stocktransfer %}<a class="nav-item {% if request.resolver_match.app_name == 'inventory' %}active{% endif %}" href="{% url 'inventory:transfer_list' %}"><i class="bi bi-arrow-left-right"></i><span>Transferencias</span></a>{% endif %}
       <span class="nav-item disabled"><i class="bi bi-people"></i><span>Clientes</span><small>Pronto</small></span>
       <div class="nav-section-title">ADMINISTRACIÓN</div>
       <span class="nav-item disabled"><i class="bi bi-cash-stack"></i><span>Finanzas y caja</span><small>Pronto</small></span>
@@ -37,7 +38,7 @@
       {% if perms.products.view_category or perms.products.view_brand or perms.products.view_size or perms.products.view_color or user.is_superuser %}<a class="nav-item {% if request.resolver_match.app_name == 'products' and request.resolver_match.url_name == 'reference_index' or request.resolver_match.url_name == 'reference_list' or request.resolver_match.url_name == 'reference_create' or request.resolver_match.url_name == 'reference_update' %}active{% endif %}" href="{% url 'products:reference_index' %}"><i class="bi bi-tags"></i><span>Catálogos</span></a>{% endif %}
       {% if user.is_staff %}<a class="nav-item" href="{% url 'admin:index' %}"><i class="bi bi-gear"></i><span>Administración</span></a>{% endif %}
     </nav>
-    <div class="sidebar-footer"><span class="status-dot"></span> Sistema en configuración <span class="version-tag">Fase 2</span></div>
+    <div class="sidebar-footer"><span class="status-dot"></span> Sistema en configuración <span class="version-tag">Fase 3</span></div>
   </aside>
 
   <div class="workspace">
