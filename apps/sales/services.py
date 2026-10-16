@@ -125,7 +125,7 @@ def _normalize_payments(payments):
     return sorted(normalized, key=lambda row: row["method_id"])
 
 
-def _hash_sale(branch_id, customer_id, normalized_lines, discount, normalized_payments, seller_id):
+def _hash_sale(branch_id, customer_id, normalized_lines, discount, normalized_payments, seller_id, cash_session_id):
     return _fingerprint({
         "branch": int(branch_id),
         "customer": int(customer_id) if customer_id else None,
@@ -133,6 +133,7 @@ def _hash_sale(branch_id, customer_id, normalized_lines, discount, normalized_pa
         "discount": str(discount),
         "payments": normalized_payments,
         "seller": int(seller_id),
+        "cash_session": int(cash_session_id) if cash_session_id else None,
     })
 
 
@@ -148,7 +149,7 @@ def _create_inventory_operation(*, branch, user, kind, reason, source_reference)
     )
 
 
-def confirm_sale(*, branch_id, customer_id, lines, discount_amount, payments, user, idempotency_key):
+def confirm_sale(*, branch_id, customer_id, lines, discount_amount, payments, user, idempotency_key, cash_session_id=None):
     normalized_lines = _normalize_sale_lines(lines)
     normalized_payments = _normalize_payments(payments)
     discount = _money(discount_amount)
@@ -157,7 +158,8 @@ def confirm_sale(*, branch_id, customer_id, lines, discount_amount, payments, us
     if discount and not (user.is_superuser or user.has_perm("sales.apply_discount")):
         raise PermissionDenied("No tienes permiso para aplicar descuentos.")
     request_hash = _hash_sale(
-        branch_id, customer_id, normalized_lines, discount, normalized_payments, user.pk
+        branch_id, customer_id, normalized_lines, discount, normalized_payments,
+        user.pk, cash_session_id,
     )
 
     with transaction.atomic():
@@ -289,6 +291,12 @@ def confirm_sale(*, branch_id, customer_id, lines, discount_amount, payments, us
             SalePayment(sale=sale, method=methods[row["method_id"]], amount=row["amount"], reference=row["reference"])
             for row in normalized_payments
         ])
+        sale_payments = list(sale.payments.select_related("method").order_by("pk"))
+        from apps.cash.services import record_sale_collections
+
+        record_sale_collections(
+            session_id=cash_session_id, sale=sale, payments=sale_payments, user=user
+        )
 
         operation = _create_inventory_operation(
             branch=branch,
@@ -341,7 +349,7 @@ def _normalize_return_lines(lines):
     return sorted(normalized)
 
 
-def process_return(*, sale_id, lines, reason, refund_method_id, user, idempotency_key):
+def process_return(*, sale_id, lines, reason, refund_method_id, user, idempotency_key, cash_session_id=None):
     if not (user.is_superuser or user.has_perm("sales.process_salereturn")):
         raise PermissionDenied("No tienes permiso para registrar devoluciones.")
     normalized = _normalize_return_lines(lines)
@@ -415,6 +423,15 @@ def process_return(*, sale_id, lines, reason, refund_method_id, user, idempotenc
             request_hash=request_hash,
             created_by=user,
         )
+        from apps.cash.services import record_sale_refund
+
+        record_sale_refund(
+            sale_return=sale_return,
+            payment_method=refund_method,
+            amount=refund_total,
+            user=user,
+            session_id=cash_session_id,
+        )
         for line, quantity, line_refund in refund_rows:
             line.quantity_returned += quantity
             line.save(update_fields=["quantity_returned"])
@@ -462,7 +479,7 @@ def _weighted_average_cost(stock, quantity, unit_cost):
     return (value / Decimal(total_quantity)).quantize(CENT, rounding=ROUND_HALF_UP)
 
 
-def cancel_sale(*, sale_id, user, reason):
+def cancel_sale(*, sale_id, user, reason, cash_session_id=None):
     if not (user.is_superuser or user.has_perm("sales.cancel_sale")):
         raise PermissionDenied("No tienes permiso para anular ventas.")
     reason = reason.strip()
@@ -500,6 +517,16 @@ def cancel_sale(*, sale_id, user, reason):
             sale=sale, refund_method=None, refund_amount=sale.total, reason=f"Anulación: {reason}",
             created_by=user, request_hash=_fingerprint({"cancel": sale.pk, "reason": reason}),
         )
+        from apps.cash.services import record_sale_refund
+
+        for payment in sale.payments.select_related("method").order_by("pk"):
+            record_sale_refund(
+                sale_return=sale_return,
+                payment_method=payment.method,
+                amount=payment.amount,
+                user=user,
+                session_id=cash_session_id,
+            )
         for line in lines:
             quantity = line.quantity
             SaleReturnLine.objects.create(

@@ -4,6 +4,7 @@
   const search = document.getElementById("productSearch");
   const resultBox = document.getElementById("searchResults");
   const branchSelect = document.getElementById("id_branch");
+  const cashSessionSelect = document.getElementById("id_cash_session");
   const cartRows = document.getElementById("cartRows");
   const cartField = document.getElementById("id_cart_json");
   const paymentsField = document.getElementById("id_payments_json");
@@ -125,7 +126,7 @@
     paymentsField.value = JSON.stringify(payments);
     document.getElementById("paidDisplay").textContent = `Bs ${money(paid)}`;
     document.getElementById("balanceDisplay").textContent = `Bs ${money(Math.max(0, total - paid))}`;
-    const valid = total > 0 && Math.abs(paid - total) < 0.005 && cart.size > 0 && branchSelect.value && payments.length > 0;
+    const valid = total > 0 && Math.abs(paid - total) < 0.005 && cart.size > 0 && branchSelect.value && cashSessionSelect?.value && payments.length > 0;
     submit.disabled = !valid;
   }
 
@@ -192,6 +193,7 @@
   search?.addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(searchProducts, 220); });
   search?.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); const first = resultBox.querySelector(".search-result"); if (first) first.click(); else searchProducts(); } });
   branchSelect?.addEventListener("change", () => { cart.clear(); renderCart(); resultBox.replaceChildren(); search.value = ""; });
+  cashSessionSelect?.addEventListener("change", renderCart);
   discount?.addEventListener("input", renderCart);
   document.getElementById("clearCart")?.addEventListener("click", () => { cart.clear(); renderCart(); });
   document.getElementById("addPayment")?.addEventListener("click", () => {

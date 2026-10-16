@@ -5,6 +5,8 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from apps.branches.models import Branch
+from apps.cash.models import CashSession
+from apps.cash.services import get_open_sessions
 from apps.customers.models import Customer
 from apps.products.models import ProductVariant
 
@@ -20,6 +22,7 @@ def authorized_branches(user):
 
 class SaleCreateForm(forms.Form):
     branch = forms.ModelChoiceField(queryset=Branch.objects.none(), label="Sucursal")
+    cash_session = forms.ModelChoiceField(queryset=CashSession.objects.none(), label="Turno de caja")
     customer = forms.ModelChoiceField(
         queryset=Customer.objects.none(), required=False, label="Cliente",
         empty_label="Venta a cliente ocasional",
@@ -35,15 +38,29 @@ class SaleCreateForm(forms.Form):
     def __init__(self, *args, user, initial_branch=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["branch"].queryset = authorized_branches(user)
-        self.fields["customer"].queryset = Customer.objects.filter(is_active=True).order_by("full_name")
         if initial_branch:
             self.fields["branch"].initial = initial_branch
+        selected_branch_id = (
+            self.data.get("branch") if self.is_bound else
+            (initial_branch.pk if initial_branch else None)
+        )
+        self.fields["cash_session"].queryset = get_open_sessions(user, selected_branch_id)
+        self.fields["customer"].queryset = Customer.objects.filter(is_active=True).order_by("full_name")
         self.initial.setdefault("cart_json", "[]")
         self.initial.setdefault("payments_json", "[]")
         self.initial.setdefault("idempotency_key", uuid.uuid4())
         self.fields["branch"].widget.attrs["class"] = "form-select"
+        self.fields["cash_session"].widget.attrs["class"] = "form-select"
         self.fields["customer"].widget.attrs["class"] = "form-select"
         self.fields["discount_amount"].widget.attrs.update({"class": "form-control", "step": "0.01"})
+
+    def clean(self):
+        cleaned_data = super().clean()
+        branch = cleaned_data.get("branch")
+        cash_session = cleaned_data.get("cash_session")
+        if branch and cash_session and cash_session.resource.branch_id != branch.pk:
+            self.add_error("cash_session", "El turno de caja debe pertenecer a la sucursal seleccionada.")
+        return cleaned_data
 
     def clean_cart_json(self):
         raw = self.cleaned_data["cart_json"]
@@ -83,11 +100,13 @@ class SaleReturnForm(forms.Form):
     refund_method = forms.ModelChoiceField(
         queryset=PaymentMethod.objects.none(), label="Medio de reembolso"
     )
+    cash_session = forms.ModelChoiceField(queryset=CashSession.objects.none(), label="Turno que registra el reembolso")
     idempotency_key = forms.UUIDField(widget=forms.HiddenInput)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user, branch_id, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["refund_method"].queryset = PaymentMethod.objects.filter(is_active=True)
+        self.fields["cash_session"].queryset = get_open_sessions(user, branch_id)
         self.initial.setdefault("idempotency_key", uuid.uuid4())
         for field in self.fields.values():
             if not isinstance(field.widget, forms.HiddenInput):
@@ -105,3 +124,16 @@ class SaleReturnLineForm(forms.Form):
         initial.setdefault("quantity", 0)
         super().__init__(*args, **kwargs)
         self.fields["quantity"].widget.attrs.update({"class": "form-control", "max": sale_line.remaining_quantity})
+
+
+class SaleCancelForm(forms.Form):
+    reason = forms.CharField(max_length=255, label="Motivo obligatorio para anular")
+    cash_session = forms.ModelChoiceField(
+        queryset=CashSession.objects.none(), label="Turno que registra el reembolso"
+    )
+
+    def __init__(self, *args, user, branch_id, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["cash_session"].queryset = get_open_sessions(user, branch_id)
+        for field in self.fields.values():
+            field.widget.attrs["class"] = "form-control"

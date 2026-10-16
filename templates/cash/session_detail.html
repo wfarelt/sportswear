@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Turno #{{ session.pk }}{% endblock %}
+{% block page_heading %}Detalle de caja{% endblock %}
+{% block content %}
+<div class="page-intro module-intro">
+  <div><div class="eyebrow">{{ session.resource.branch.name }} · {{ session.resource.name }}</div><h1>Turno #{{ session.pk }} {% if session.is_open %}<span class="cash-status open">Abierta</span>{% else %}<span class="cash-status closed">Cerrada</span>{% endif %}</h1><p>Apertura {{ session.opened_at|date:'d/m/Y H:i' }} · {{ session.opened_by.get_full_name|default:session.opened_by.username }}{% if session.closed_at %} · Cierre {{ session.closed_at|date:'d/m/Y H:i' }}{% endif %}</p></div>
+  <div class="intro-actions"><a class="btn btn-light btn-sm" href="{% url 'cash:session_list' %}"><i class="bi bi-arrow-left me-1"></i>Turnos</a>{% if session.is_open and can_move %}<a class="btn btn-outline-secondary btn-sm" href="{% url 'cash:movement_create' %}?branch={{ session.resource.branch_id }}"><i class="bi bi-plus-slash-minus me-1"></i>Movimiento manual</a>{% endif %}{% if can_close %}<a class="btn btn-danger btn-sm" href="{% url 'cash:session_close' session.pk %}"><i class="bi bi-lock me-1"></i>Cerrar turno</a>{% endif %}</div>
+</div>
+<section class="cash-summary-grid">
+  <div class="content-panel"><span>Saldo inicial</span><strong>Bs {{ session.opening_balance|floatformat:2 }}</strong></div>
+  <div class="content-panel"><span>Ventas en efectivo</span><strong>Bs {{ totals.cash_sales|floatformat:2 }}</strong></div>
+  <div class="content-panel"><span>Cobros no efectivos</span><strong>Bs {{ totals.noncash_collections|floatformat:2 }}</strong></div>
+  <div class="content-panel"><span>Ingresos adicionales</span><strong>Bs {{ totals.additional_income|floatformat:2 }}</strong></div>
+  <div class="content-panel"><span>Egresos / retiros</span><strong>Bs {{ totals.expenses|add:totals.withdrawals|floatformat:2 }}</strong></div>
+  <div class="content-panel"><span>Reembolsos efectivo</span><strong>Bs {{ totals.cash_refunds|floatformat:2 }}</strong></div>
+  <div class="content-panel emphasis"><span>Efectivo esperado</span><strong>Bs {{ totals.expected_cash|floatformat:2 }}</strong></div>
+  {% if not session.is_open %}<div class="content-panel emphasis"><span>Diferencia del arqueo</span><strong class="{% if session.difference < 0 %}cash-negative{% elif session.difference > 0 %}cash-positive{% endif %}">Bs {{ session.difference|floatformat:2 }}</strong><small>Contado: Bs {{ session.counted_cash|floatformat:2 }}</small></div>{% endif %}
+</section>
+<section class="content-panel cash-session-facts">
+  <div><span>Responsable de apertura</span><strong>{{ session.opened_by.get_full_name|default:session.opened_by.username }}</strong>{% if session.opening_notes %}<small>{{ session.opening_notes }}</small>{% endif %}</div>
+  <div><span>Responsable de cierre</span>{% if session.closed_by %}<strong>{{ session.closed_by.get_full_name|default:session.closed_by.username }}</strong>{% if session.closing_notes %}<small>{{ session.closing_notes }}</small>{% endif %}{% else %}<strong>Turno abierto</strong>{% endif %}</div>
+</section>
+<section class="content-panel table-panel mt-3"><div class="panel-heading"><div><h2>Historial de movimientos</h2><p>Los pagos por QR, tarjeta y transferencia se muestran por separado del efectivo esperado.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>Fecha</th><th>Tipo / origen</th><th>Medio de pago</th><th>Importe</th><th>Afecta efectivo</th><th>Responsable</th><th>Referencia</th></tr></thead><tbody>
+  {% for movement in movements %}<tr><td>{{ movement.created_at|date:'d/m/Y H:i' }}</td><td><strong>{{ movement.get_kind_display }}</strong><small class="table-subtext">{{ movement.reason }}</small></td><td>{{ movement.payment_method.name|default:'—' }}</td><td>Bs {{ movement.amount|floatformat:2 }}</td><td>{% if movement.affects_cash %}<span class="status-badge active">Sí</span>{% else %}<span class="status-badge inactive">No</span>{% endif %}</td><td>{{ movement.user.get_full_name|default:movement.user.username }}</td><td>{% if movement.sale_payment %}<a href="{% url 'sales:detail' movement.sale_payment.sale_id %}">{{ movement.reference }}</a>{% elif movement.sale_return %}<a href="{% url 'sales:detail' movement.sale_return.sale_id %}">{{ movement.reference }}</a>{% else %}{{ movement.reference|default:'—' }}{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7"><div class="table-empty compact-empty"><strong>Aún no hay movimientos</strong><span>Los cobros de ventas aparecen aquí al confirmar una operación.</span></div></td></tr>{% endfor %}
+</tbody></table></div></section>
+<section class="content-panel cash-events mt-3"><div class="panel-heading"><div><h2>Historial del turno</h2></div></div>{% for event in session.events.all %}<div class="cash-event"><span class="event-dot"></span><div><strong>{{ event.get_event_type_display|default:event.event_type }}</strong><small>{{ event.details }} · {{ event.user.get_full_name|default:event.user.username }} · {{ event.created_at|date:'d/m/Y H:i' }}</small></div></div>{% endfor %}</section>
+{% endblock %}

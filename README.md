@@ -1,6 +1,6 @@
 # Sportswear
 
-Sistema web modular para la gestión de una tienda de ropa deportiva. La implementación sigue el plan incremental del archivo `prompt`; las **Fases 1 a 4** están implementadas.
+Sistema web modular para la gestión de una tienda de ropa deportiva. La implementación sigue el plan incremental del archivo `prompt`; las **Fases 1 a 5** están implementadas.
 
 ## Arquitectura inicial
 
@@ -12,6 +12,7 @@ Sistema web modular para la gestión de una tienda de ropa deportiva. La impleme
 - `apps/inventory`: existencias por sucursal y variante, operaciones trazables y transferencias con recepción parcial.
 - `apps/customers`: información e historial visible de clientes.
 - `apps/sales`: punto de venta, pagos configurables, comprobantes, anulaciones y devoluciones.
+- `apps/cash`: recursos de caja, turnos, cobros vinculados y arqueos inmutables.
 - `templates/` y `static/`: plantilla compartida, autenticación, estilos y JavaScript.
 
 El usuario personalizado se configura antes de la primera migración. Los roles describen el perfil inicial; las vistas de administración del catálogo y sucursales están protegidas con permisos y grupos de Django. Los módulos restantes se añadirán de forma incremental, sin crear registros comerciales de demostración.
@@ -98,3 +99,14 @@ PostgreSQL utiliza bloqueos de filas durante las actualizaciones de existencias.
 - La clave de idempotencia previene ventas duplicadas ante reintentos. El inventario se bloquea por variante en PostgreSQL; la concurrencia de producción debe probarse en un servidor PostgreSQL real.
 
 Configura permisos Django mediante grupos, incluidos `sales.apply_discount`, `sales.cancel_sale`, `sales.process_salereturn` y `sales.view_all_sales`. Los vendedores sin el último permiso solo consultan sus propias operaciones; los permisos no sustituyen la comprobación de sucursales autorizadas.
+
+## Fase 5: caja y turnos
+
+- Cada recurso de caja pertenece a una sucursal y se configura desde Django Admin. Una restricción de base de datos impide turnos abiertos duplicados en el mismo recurso.
+- Aperturas registran saldo inicial, responsable, fecha y observaciones. Los movimientos manuales (ingreso adicional, egreso y retiro) solo se permiten dentro de un turno abierto.
+- Cada cobro de venta, incluido QR, tarjeta o transferencia, queda vinculado al turno. La clasificación de efectivo/no efectivo se guarda como una copia histórica para que cambios futuros del catálogo de medios de pago no alteren cierres anteriores.
+- El cierre guarda efectivo contado, efectivo esperado, cobros, ingresos, egresos, retiros, reembolsos, diferencia, usuario y fecha; no se puede editar desde la interfaz ni desde Django Admin.
+- Ventas requieren un turno abierto; las devoluciones y anulaciones seleccionan un turno abierto para registrar sus reembolsos. Esto mantiene trazabilidad, pero no permite reembolsar desde una caja cerrada; se debe abrir el turno operativo correspondiente.
+- El efectivo esperado se calcula como saldo inicial + cobros de ventas en efectivo + ingresos adicionales − egresos − retiros − reembolsos en efectivo. Los cobros electrónicos se informan aparte y no afectan el efectivo físico.
+
+Asigna permisos Django `cash.view_cashsession`, `cash.open_cashsession`, `cash.close_cashsession`, `cash.add_cashmovement` y `cash.view_cashmovement` mediante grupos. Las pruebas locales se ejecutan sobre SQLite; las garantías de bloqueo y carrera entre aperturas deben confirmarse además en PostgreSQL.

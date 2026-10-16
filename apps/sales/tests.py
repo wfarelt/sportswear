@@ -8,6 +8,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.branches.models import Branch
+from apps.cash.models import CashResource, CashSession, CashMovement
+from apps.cash.services import close_session, open_session
 from apps.customers.models import Customer
 from apps.inventory.models import InventoryMovement, InventoryOperation, StockLevel
 from apps.products.models import Brand, Category, Product, ProductVariant, Size
@@ -46,6 +48,16 @@ class SalesTestDataMixin:
         self.qr = PaymentMethod.objects.get(code="qr")
         self.customer = Customer.objects.create(full_name="Cliente Ejemplo")
         self.grant(self.user, "process_salereturn")
+        self.user.user_permissions.add(*Permission.objects.filter(
+            content_type__app_label="cash", codename__in=("open_cashsession", "add_cashmovement")
+        ))
+        self.cash_resource = CashResource.objects.create(
+            branch=self.branch, code="main", name="Caja Principal"
+        )
+        self.cash_session = open_session(
+            resource_id=self.cash_resource.pk, opening_balance=Decimal("50.00"),
+            user=self.user, notes="Apertura de prueba",
+        )
 
     def grant(self, user, *codenames):
         user.user_permissions.add(*Permission.objects.filter(
@@ -67,6 +79,7 @@ class SalesTestDataMixin:
             payments=payment_rows,
             user=user or self.user,
             idempotency_key=key or uuid.uuid4(),
+            cash_session_id=self.cash_session.pk,
         )
 
 
@@ -160,6 +173,7 @@ class SaleServiceTests(SalesTestDataMixin, TestCase):
             lines=[{"sale_line_id": line.pk, "quantity": 1}],
             reason="Talla incorrecta", refund_method_id=self.cash.pk,
             user=self.user, idempotency_key=uuid.uuid4(),
+            cash_session_id=self.cash_session.pk,
         )
         self.stock.refresh_from_db()
         line.refresh_from_db()
@@ -168,6 +182,10 @@ class SaleServiceTests(SalesTestDataMixin, TestCase):
         self.assertEqual(self.stock.quantity, 9)
         self.assertEqual(line.quantity_returned, 1)
         self.assertEqual(sale.status, Sale.Status.PARTIALLY_RETURNED)
+        refund_movement = CashMovement.objects.get(sale_return=sale_return)
+        self.assertEqual(refund_movement.session_id, self.cash_session.pk)
+        self.assertEqual(refund_movement.amount, sale_return.refund_amount)
+        self.assertTrue(refund_movement.affects_cash)
         with self.assertRaises(ValidationError):
             process_return(
                 sale_id=sale.pk,
@@ -188,11 +206,13 @@ class SaleServiceTests(SalesTestDataMixin, TestCase):
             sale_id=sale.pk, lines=[{"sale_line_id": line.pk, "quantity": 1}],
             reason="Devolución parcial", refund_method_id=self.cash.pk,
             user=self.user, idempotency_key=uuid.uuid4(),
+            cash_session_id=self.cash_session.pk,
         )
         second = process_return(
             sale_id=sale.pk, lines=[{"sale_line_id": line.pk, "quantity": 2}],
             reason="Resto de devolución", refund_method_id=self.cash.pk,
             user=self.user, idempotency_key=uuid.uuid4(),
+            cash_session_id=self.cash_session.pk,
         )
         self.assertEqual(first.refund_amount + second.refund_amount, line.line_total)
         sale.refresh_from_db()
@@ -217,6 +237,8 @@ class SaleServiceTests(SalesTestDataMixin, TestCase):
         self.user.user_permissions.remove(Permission.objects.get(
             content_type__app_label="sales", codename="process_salereturn"
         ))
+        self.user.__dict__.pop("_perm_cache", None)
+        self.user.__dict__.pop("_user_perm_cache", None)
         sale = self.confirm()
         with self.assertRaises(PermissionDenied):
             process_return(
@@ -228,27 +250,71 @@ class SaleServiceTests(SalesTestDataMixin, TestCase):
     def test_cancel_sale_reverses_inventory_once_and_preserves_sale(self):
         self.grant(self.user, "cancel_sale")
         sale = self.confirm(quantity=2)
-        cancel_sale(sale_id=sale.pk, user=self.user, reason="Error de cobro")
-        cancel_sale(sale_id=sale.pk, user=self.user, reason="Reintento")
+        cancel_sale(sale_id=sale.pk, user=self.user, reason="Error de cobro", cash_session_id=self.cash_session.pk)
+        cancel_sale(sale_id=sale.pk, user=self.user, reason="Reintento", cash_session_id=self.cash_session.pk)
         sale.refresh_from_db()
         self.stock.refresh_from_db()
         self.assertEqual(sale.status, Sale.Status.CANCELLED)
         self.assertEqual(self.stock.quantity, 10)
         self.assertEqual(InventoryOperation.objects.filter(kind=InventoryOperation.Kind.SALE_CANCEL).count(), 1)
         self.assertEqual(SaleReturn.objects.filter(sale=sale).count(), 1)
+        self.assertEqual(
+            CashMovement.objects.filter(
+                sale_return__sale=sale, kind=CashMovement.Kind.SALE_REFUND
+            ).count(), 1,
+        )
+
+    def test_sale_requires_open_cash_shift_and_shift_id_is_part_of_idempotency(self):
+        sale = self.confirm()
+        another_resource = CashResource.objects.create(
+            branch=self.branch, code="second", name="Caja secundaria"
+        )
+        other_session = open_session(
+            resource_id=another_resource.pk, opening_balance=0, user=self.user
+        )
+        self.user.user_permissions.add(Permission.objects.get(
+            content_type__app_label="cash", codename="close_cashsession"
+        ))
+        self.user.__dict__.pop("_perm_cache", None)
+        self.user.__dict__.pop("_user_perm_cache", None)
+        with self.assertRaises(ValidationError):
+            confirm_sale(
+                branch_id=self.branch.pk, customer_id=None,
+                lines=[{"variant_id": self.variant.pk, "quantity": 1}],
+                discount_amount=Decimal("0"),
+                payments=[{"method_id": self.cash.pk, "amount": Decimal("22.60")}],
+                user=self.user, idempotency_key=sale.idempotency_key,
+                cash_session_id=other_session.pk,
+            )
+        self.assertEqual(Sale.objects.count(), 1)
+        self.assertEqual(other_session.status, CashSession.Status.OPEN)
+        closed = close_session(
+            session_id=self.cash_session.pk, counted_cash=Decimal("72.60"), user=self.user
+        )
+        self.assertEqual(closed.status, CashSession.Status.CLOSED)
+        with self.assertRaises(ValidationError):
+            confirm_sale(
+                branch_id=self.branch.pk, customer_id=None,
+                lines=[{"variant_id": self.variant.pk, "quantity": 1}],
+                discount_amount=Decimal("0"),
+                payments=[{"method_id": self.cash.pk, "amount": Decimal("22.60")}],
+                user=self.user, idempotency_key=uuid.uuid4(),
+                cash_session_id=self.cash_session.pk,
+            )
 
     def test_cancel_requires_permission_reason_and_no_prior_return(self):
         sale = self.confirm()
         with self.assertRaises(PermissionDenied):
-            cancel_sale(sale_id=sale.pk, user=self.user, reason="Motivo")
+            cancel_sale(sale_id=sale.pk, user=self.user, reason="Motivo", cash_session_id=self.cash_session.pk)
         self.grant(self.user, "cancel_sale")
         with self.assertRaises(ValidationError):
-            cancel_sale(sale_id=sale.pk, user=self.user, reason="")
+            cancel_sale(sale_id=sale.pk, user=self.user, reason="", cash_session_id=self.cash_session.pk)
         line = sale.lines.get()
         process_return(
             sale_id=sale.pk, lines=[{"sale_line_id": line.pk, "quantity": 1}],
             reason="Devuelta", refund_method_id=self.cash.pk,
             user=self.user, idempotency_key=uuid.uuid4(),
+            cash_session_id=self.cash_session.pk,
         )
         with self.assertRaises(ValidationError):
             cancel_sale(sale_id=sale.pk, user=self.user, reason="Anular")
@@ -275,6 +341,7 @@ class SalesViewTests(SalesTestDataMixin, TestCase):
         response = self.client.post(reverse("sales:create"), {
             "branch": self.branch.pk,
             "customer": self.customer.pk,
+            "cash_session": self.cash_session.pk,
             "discount_amount": "0.00",
             "cart_json": json.dumps([{"variant_id": self.variant.pk, "quantity": 1}]),
             "payments_json": json.dumps([{"method_id": self.cash.pk, "amount": total}]),
@@ -290,12 +357,20 @@ class SalesViewTests(SalesTestDataMixin, TestCase):
 
     def test_sale_url_and_history_do_not_expose_other_branch_sale(self):
         other = Branch.objects.create(name="Norte", code="norte")
-        other_stock = StockLevel.objects.create(branch=other, variant=self.variant, quantity=2)
+        StockLevel.objects.create(branch=other, variant=self.variant, quantity=2)
+        self.admin.user_permissions.add(*Permission.objects.filter(
+            content_type__app_label="cash", codename__in=("open_cashsession", "add_cashmovement")
+        ))
+        other_resource = CashResource.objects.create(branch=other, code="main", name="Caja Norte")
+        other_session = open_session(
+            resource_id=other_resource.pk, opening_balance=Decimal("0"), user=self.admin
+        )
         sale = confirm_sale(
             branch_id=other.pk, customer_id=None,
             lines=[{"variant_id": self.variant.pk, "quantity": 1}],
             discount_amount=Decimal("0"), payments=[{"method_id": self.cash.pk, "amount": Decimal("22.60")}],
             user=self.admin, idempotency_key=uuid.uuid4(),
+            cash_session_id=other_session.pk,
         )
         response = self.client.get(reverse("sales:detail", args=[sale.pk]))
         self.assertEqual(response.status_code, 404)
@@ -315,6 +390,13 @@ class SalesViewTests(SalesTestDataMixin, TestCase):
         self.user.__dict__.pop("_perm_cache", None)
         other_branch = Branch.objects.create(name="Norte", code="norte")
         StockLevel.objects.create(branch=other_branch, variant=self.variant, quantity=2)
+        self.admin.user_permissions.add(*Permission.objects.filter(
+            content_type__app_label="cash", codename__in=("open_cashsession", "add_cashmovement")
+        ))
+        other_resource = CashResource.objects.create(branch=other_branch, code="main", name="Caja Norte")
+        other_session = open_session(
+            resource_id=other_resource.pk, opening_balance=Decimal("0"), user=self.admin
+        )
         other_sale = confirm_sale(
             branch_id=other_branch.pk,
             customer_id=self.customer.pk,
@@ -323,6 +405,7 @@ class SalesViewTests(SalesTestDataMixin, TestCase):
             payments=[{"method_id": self.cash.pk, "amount": Decimal("22.60")}],
             user=self.admin,
             idempotency_key=uuid.uuid4(),
+            cash_session_id=other_session.pk,
         )
         response = self.client.get(reverse("customers:detail", args=[self.customer.pk]))
         self.assertEqual(response.status_code, 200)

@@ -17,6 +17,7 @@ from apps.products.models import ProductVariant
 
 from .forms import (
     SaleCreateForm,
+    SaleCancelForm,
     SaleReturnForm,
     SaleReturnLineForm,
     authorized_branches,
@@ -119,6 +120,7 @@ def sale_create(request):
                 payments=form.cleaned_data["payments_json"],
                 user=request.user,
                 idempotency_key=form.cleaned_data["idempotency_key"],
+                cash_session_id=form.cleaned_data["cash_session"].pk,
             )
             messages.success(request, f"La venta {sale.number} se confirmó correctamente.")
             return redirect("sales:receipt", pk=sale.pk)
@@ -182,6 +184,7 @@ def product_search(request):
 @permission_required_or_superuser("sales.view_sale")
 def sale_detail(request, pk):
     sale = _get_sale(request.user, pk)
+    cancel_form = SaleCancelForm(user=request.user, branch_id=sale.branch_id)
     return render(request, "sales/sale_detail.html", {
         "sale": sale,
         "can_cancel": sale.status == Sale.Status.CONFIRMED and (
@@ -189,6 +192,7 @@ def sale_detail(request, pk):
         ),
         "can_return": sale.status in {Sale.Status.CONFIRMED, Sale.Status.PARTIALLY_RETURNED}
         and (request.user.is_superuser or request.user.has_perm("sales.process_salereturn")),
+        "cancel_form": cancel_form,
     })
 
 
@@ -202,8 +206,16 @@ def sale_receipt(request, pk):
 @require_POST
 def sale_cancel(request, pk):
     sale = _get_sale(request.user, pk)
+    form = SaleCancelForm(request.POST, user=request.user, branch_id=sale.branch_id)
     try:
-        cancel_sale(sale_id=sale.pk, user=request.user, reason=request.POST.get("reason", ""))
+        if not form.is_valid():
+            raise ValidationError("Completa el motivo y selecciona el turno de caja.")
+        cancel_sale(
+            sale_id=sale.pk,
+            user=request.user,
+            reason=form.cleaned_data["reason"],
+            cash_session_id=form.cleaned_data["cash_session"].pk,
+        )
         messages.success(request, f"La venta {sale.number} fue anulada y el inventario fue restituido.")
     except ValidationError as error:
         messages.error(request, str(error))
@@ -218,7 +230,7 @@ def sale_return(request, pk):
         return redirect("sales:detail", pk=pk)
     lines = list(SaleLine.objects.filter(sale=sale).order_by("pk"))
     active_lines = [line for line in lines if line.remaining_quantity]
-    form = SaleReturnForm(request.POST or None)
+    form = SaleReturnForm(request.POST or None, user=request.user, branch_id=sale.branch_id)
     if request.method == "POST":
         line_forms = []
         for index, sale_line in enumerate(active_lines):
@@ -241,6 +253,7 @@ def sale_return(request, pk):
                     refund_method_id=form.cleaned_data["refund_method"].pk,
                     user=request.user,
                     idempotency_key=form.cleaned_data["idempotency_key"],
+                    cash_session_id=form.cleaned_data["cash_session"].pk,
                 )
                 messages.success(request, f"Devolución registrada por Bs {sale_return.refund_amount:.2f}.")
                 return redirect("sales:detail", pk=sale.pk)
