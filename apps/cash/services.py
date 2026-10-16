@@ -193,12 +193,8 @@ def record_sale_refund(*, sale_return, payment_method, amount, user, session_id=
 
 
 def record_manual_movement(*, session_id, kind, amount, reason, reference, user, idempotency_key):
-    if kind not in {
-        CashMovement.Kind.OTHER_INCOME,
-        CashMovement.Kind.EXPENSE,
-        CashMovement.Kind.WITHDRAWAL,
-    }:
-        raise ValidationError("Tipo de movimiento manual no válido.")
+    if kind != CashMovement.Kind.WITHDRAWAL:
+        raise ValidationError("Los ingresos y egresos categorizados se registran desde Finanzas.")
     if not reason.strip():
         raise ValidationError("Indica el motivo del movimiento.")
     _require_permission(user, "cash.add_cashmovement")
@@ -223,6 +219,51 @@ def record_manual_movement(*, session_id, kind, amount, reason, reference, user,
         CashSessionEvent.objects.create(
             session=session, user=user, event_type="movement",
             details=f"{movement.get_kind_display()}: Bs {movement.amount:.2f} · {movement.reason}"[:255],
+        )
+        return movement
+
+
+def record_finance_movement(*, session_id, kind, amount, reason, reference, user,
+                            finance_operation, payment_method=None):
+    """Create the cash-ledger entry for an approved finance transaction exactly once."""
+    if kind not in {CashMovement.Kind.OTHER_INCOME, CashMovement.Kind.EXPENSE}:
+        raise ValidationError("Una operación financiera solo puede crear ingresos o egresos de caja.")
+    _require_permission(user, "cash.add_cashmovement")
+    payload_hash = _fingerprint({
+        "session": session_id, "kind": kind, "amount": str(amount),
+        "reason": reason.strip(), "reference": reference.strip(),
+        "payment_method": payment_method.pk if payment_method else None,
+    })
+    with transaction.atomic():
+        finance_operation = type(finance_operation).objects.select_for_update().get(
+            pk=finance_operation.pk
+        )
+        if finance_operation.cash_movement_id:
+            movement = finance_operation.cash_movement
+            if movement.request_hash != payload_hash:
+                raise ValidationError("La clave financiera ya se utilizó con otros datos.")
+            _authorized_branch(user, movement.session.resource.branch_id)
+            return movement
+        session = _locked_open_session(session_id, user)
+        movement = _add_movement(
+            session=session,
+            kind=kind,
+            amount=amount,
+            user=user,
+            payment_method=payment_method,
+            affects_cash=True,
+            reason=reason,
+            reference=reference,
+            idempotency_key=finance_operation.idempotency_key,
+            request_hash=payload_hash,
+        )
+        finance_operation.cash_movement = movement
+        finance_operation.save(update_fields=["cash_movement"])
+        CashSessionEvent.objects.create(
+            session=session,
+            user=user,
+            event_type="movement",
+            details=f"{movement.get_kind_display()}: Bs {movement.amount:.2f} · {reason}"[:255],
         )
         return movement
 

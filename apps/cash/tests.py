@@ -6,6 +6,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.branches.models import Branch
 from apps.customers.models import Customer
@@ -13,6 +14,8 @@ from apps.inventory.models import StockLevel
 from apps.products.models import Brand, Category, Product, ProductVariant, Size
 from apps.sales.models import PaymentMethod, Sale
 from apps.sales.services import confirm_sale, process_return
+from apps.finance.models import FinanceAccount, FinanceApprovalLimit, FinanceCategory, FinanceOperation
+from apps.finance.services import create_operation
 from apps.users.models import User, UserBranchAccess
 
 from .models import CashMovement, CashResource, CashSession
@@ -31,6 +34,22 @@ class CashTestMixin:
         )
         self.permissions = Permission.objects.filter(content_type__app_label="cash")
         self.grant(self.user, "view_cashsession", "view_cashmovement", "open_cashsession", "close_cashsession", "add_cashmovement")
+        self.user.user_permissions.add(*Permission.objects.filter(
+            content_type__app_label="finance", codename="add_financeoperation"
+        ))
+        self.finance_income_category = FinanceCategory.objects.create(
+            name="Ingreso adicional", kind=FinanceCategory.Kind.INCOME
+        )
+        self.finance_expense_category = FinanceCategory.objects.create(
+            name="Gasto operativo", kind=FinanceCategory.Kind.EXPENSE
+        )
+        self.finance_cash_account = FinanceAccount.objects.create(
+            name="Caja Principal", kind=FinanceAccount.Kind.CASH,
+            branch=self.branch, cash_resource=self.resource,
+        )
+        FinanceApprovalLimit.objects.create(
+            user=self.user, branch=self.branch, maximum_amount=Decimal("1000.00")
+        )
 
     def grant(self, user, *codenames):
         user.user_permissions.add(*Permission.objects.filter(
@@ -65,15 +84,21 @@ class CashServiceTests(CashTestMixin, TestCase):
             user=self.user, idempotency_key=uuid.uuid4(), cash_session_id=session.pk,
         )
         self.assertEqual(CashMovement.objects.filter(sale_payment__sale=sale).count(), 2)
-        record_manual_movement(
-            session_id=session.pk, kind=CashMovement.Kind.OTHER_INCOME,
-            amount=Decimal("5.00"), reason="Aporte de cambio", reference="REC-1",
-            user=self.user, idempotency_key=uuid.uuid4(),
+        create_operation(
+            kind=FinanceOperation.Kind.INCOME, category_id=self.finance_income_category.pk,
+            branch_id=self.branch.pk, account_id=self.finance_cash_account.pk,
+            concept="Aporte de cambio", amount=Decimal("5.00"),
+            operation_date=timezone.localdate(), notes="", user=self.user,
+            idempotency_key=uuid.uuid4(), cash_session_id=session.pk,
+            payment_method_id=cash.pk,
         )
-        record_manual_movement(
-            session_id=session.pk, kind=CashMovement.Kind.EXPENSE,
-            amount=Decimal("2.00"), reason="Compra de bolsas", reference="REC-2",
-            user=self.user, idempotency_key=uuid.uuid4(),
+        create_operation(
+            kind=FinanceOperation.Kind.EXPENSE, category_id=self.finance_expense_category.pk,
+            branch_id=self.branch.pk, account_id=self.finance_cash_account.pk,
+            concept="Compra de bolsas", amount=Decimal("2.00"),
+            operation_date=timezone.localdate(), notes="", user=self.user,
+            idempotency_key=uuid.uuid4(), cash_session_id=session.pk,
+            payment_method_id=cash.pk,
         )
         record_manual_movement(
             session_id=session.pk, kind=CashMovement.Kind.WITHDRAWAL,
@@ -109,7 +134,7 @@ class CashServiceTests(CashTestMixin, TestCase):
         session = open_session(resource_id=self.resource.pk, opening_balance=0, user=self.user)
         key = uuid.uuid4()
         payload = {
-            "session_id": session.pk, "kind": CashMovement.Kind.OTHER_INCOME,
+            "session_id": session.pk, "kind": CashMovement.Kind.WITHDRAWAL,
             "amount": Decimal("7.50"), "reason": "Aporte", "reference": "A-1",
             "user": self.user, "idempotency_key": key,
         }
@@ -121,7 +146,7 @@ class CashServiceTests(CashTestMixin, TestCase):
         close_session(session_id=session.pk, counted_cash=Decimal("7.50"), user=self.user)
         with self.assertRaises(ValidationError):
             record_manual_movement(
-                session_id=session.pk, kind=CashMovement.Kind.OTHER_INCOME,
+                session_id=session.pk, kind=CashMovement.Kind.WITHDRAWAL,
                 amount=1, reason="Tarde", reference="", user=self.user,
                 idempotency_key=uuid.uuid4(),
             )
@@ -170,7 +195,7 @@ class CashViewTests(CashTestMixin, TestCase):
         session = open_session(resource_id=self.resource.pk, opening_balance=0, user=self.user)
         response = self.client.post(reverse("cash:movement_create"), {
             "session": session.pk,
-            "kind": CashMovement.Kind.OTHER_INCOME,
+            "kind": CashMovement.Kind.WITHDRAWAL,
             "amount": "12.50",
             "reason": "Ingreso adicional",
             "reference": "REC-10",
@@ -185,7 +210,7 @@ class CashViewTests(CashTestMixin, TestCase):
         response = self.client.post(reverse("cash:session_close", args=[session.pk]), {"counted_cash": "0"})
         self.assertRedirects(response, reverse("cash:session_detail", args=[session.pk]))
         response = self.client.post(reverse("cash:movement_create"), {
-            "session": session.pk, "kind": CashMovement.Kind.OTHER_INCOME,
+            "session": session.pk, "kind": CashMovement.Kind.WITHDRAWAL,
             "amount": "5", "reason": "Tarde", "reference": "",
             "idempotency_key": str(uuid.uuid4()),
         })

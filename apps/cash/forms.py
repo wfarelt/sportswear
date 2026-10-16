@@ -59,8 +59,6 @@ class ManualMovementForm(BootstrapFormMixin, forms.Form):
     session = forms.ModelChoiceField(queryset=CashSession.objects.none(), label="Turno abierto")
     kind = forms.ChoiceField(
         choices=(
-            (CashMovement.Kind.OTHER_INCOME, "Ingreso de efectivo"),
-            (CashMovement.Kind.EXPENSE, "Egreso de efectivo"),
             (CashMovement.Kind.WITHDRAWAL, "Retiro de efectivo"),
         ),
         label="Tipo de movimiento",

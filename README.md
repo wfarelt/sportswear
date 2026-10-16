@@ -1,6 +1,6 @@
 # Sportswear
 
-Sistema web modular para la gestión de una tienda de ropa deportiva. La implementación sigue el plan incremental del archivo `prompt`; las **Fases 1 a 5** están implementadas.
+Sistema web modular para la gestión de una tienda de ropa deportiva. La implementación sigue el plan incremental del archivo `prompt`; las **Fases 1 a 6** están implementadas.
 
 ## Arquitectura inicial
 
@@ -13,6 +13,7 @@ Sistema web modular para la gestión de una tienda de ropa deportiva. La impleme
 - `apps/customers`: información e historial visible de clientes.
 - `apps/sales`: punto de venta, pagos configurables, comprobantes, anulaciones y devoluciones.
 - `apps/cash`: recursos de caja, turnos, cobros vinculados y arqueos inmutables.
+- `apps/finance`: categorías, cuentas, ingresos/egresos con autorización, contabilización en caja y reversiones compensatorias.
 - `templates/` y `static/`: plantilla compartida, autenticación, estilos y JavaScript.
 
 El usuario personalizado se configura antes de la primera migración. Los roles describen el perfil inicial; las vistas de administración del catálogo y sucursales están protegidas con permisos y grupos de Django. Los módulos restantes se añadirán de forma incremental, sin crear registros comerciales de demostración.
@@ -57,7 +58,7 @@ Configurar `DB_ENGINE=postgresql` y completar `DB_NAME`, `DB_USER`, `DB_PASSWORD
 - Código y nombres técnicos en inglés; interfaz en español.
 - Vistas basadas en funciones, formularios Django y validación en servidor.
 - Importes monetarios con `DecimalField`.
-- Ventas y caja se implementarán con servicios de negocio y transacciones en sus fases correspondientes; el inventario ya usa operaciones de servicio transaccionales.
+	- Las ventas, inventario, caja y finanzas usan servicios de negocio y transacciones para sus operaciones críticas.
 
 ## Fase 2: sucursales y catálogo de productos
 
@@ -103,10 +104,21 @@ Configura permisos Django mediante grupos, incluidos `sales.apply_discount`, `sa
 ## Fase 5: caja y turnos
 
 - Cada recurso de caja pertenece a una sucursal y se configura desde Django Admin. Una restricción de base de datos impide turnos abiertos duplicados en el mismo recurso.
-- Aperturas registran saldo inicial, responsable, fecha y observaciones. Los movimientos manuales (ingreso adicional, egreso y retiro) solo se permiten dentro de un turno abierto.
+- Aperturas registran saldo inicial, responsable, fecha y observaciones. Los retiros manuales requieren un turno abierto; ingresos y egresos categorizados se registran en Finanzas para evitar duplicados y aplicar autorizaciones.
 - Cada cobro de venta, incluido QR, tarjeta o transferencia, queda vinculado al turno. La clasificación de efectivo/no efectivo se guarda como una copia histórica para que cambios futuros del catálogo de medios de pago no alteren cierres anteriores.
 - El cierre guarda efectivo contado, efectivo esperado, cobros, ingresos, egresos, retiros, reembolsos, diferencia, usuario y fecha; no se puede editar desde la interfaz ni desde Django Admin.
 - Ventas requieren un turno abierto; las devoluciones y anulaciones seleccionan un turno abierto para registrar sus reembolsos. Esto mantiene trazabilidad, pero no permite reembolsar desde una caja cerrada; se debe abrir el turno operativo correspondiente.
 - El efectivo esperado se calcula como saldo inicial + cobros de ventas en efectivo + ingresos adicionales − egresos − retiros − reembolsos en efectivo. Los cobros electrónicos se informan aparte y no afectan el efectivo físico.
 
 Asigna permisos Django `cash.view_cashsession`, `cash.open_cashsession`, `cash.close_cashsession`, `cash.add_cashmovement` y `cash.view_cashmovement` mediante grupos. Las pruebas locales se ejecutan sobre SQLite; las garantías de bloqueo y carrera entre aperturas deben confirmarse además en PostgreSQL.
+
+## Fase 6: ingresos y egresos
+
+- El nuevo módulo `apps/finance` registra ingresos y egresos categorizados, cuentas por sucursal o generales, fecha, concepto, importe y comprobante adjunto opcional.
+- Las cuentas bancarias mantienen un saldo inicial contable y muestran un saldo calculado a partir de operaciones contabilizadas. Las cuentas de efectivo se vinculan a una caja física; el saldo inicial de efectivo pertenece a cada turno.
+- Los pagos de ventas y sus reembolsos no se vuelven a registrar como operaciones financieras. Las operaciones de caja ingresadas desde Finanzas crean su movimiento categorizado y vinculado; el formulario de caja queda para retiros manuales, evitando ingresos/egresos sin categoría.
+- Los límites pueden definirse por usuario o rol, con alcance por sucursal o general. Si el importe supera el límite del creador, la operación queda pendiente y no afecta caja ni cuenta. La autoriza otra persona con límite suficiente y permiso; no se permite autoaprobación.
+- Los movimientos de efectivo solo se contabilizan al confirmar la operación y deben apuntar a un turno abierto de la caja de la cuenta. Operaciones bancarias no afectan turnos de caja.
+- Las operaciones confirmadas no se editan ni eliminan. Reversiones crean una operación opuesta relacionada con la original, dejan historial de eventos y registran un efecto compensatorio en caja cuando corresponde.
+
+Configura categorías, cuentas, límites de autorización y permisos desde Django Admin. Los permisos relevantes son `finance.add_financeoperation`, `finance.view_financeoperation`, `finance.approve_financeoperation`, `finance.reject_financeoperation`, `finance.reverse_financeoperation` y `finance.view_all_financeoperations`; para contabilizar en efectivo también se requiere `cash.add_cashmovement`. Los permisos `finance.use_general_finance_accounts` y `finance.view_general_finance_accounts` controlan por separado el uso y consulta de cuentas bancarias generales. Los saldos bancarios son calculados desde el saldo inicial más operaciones contabilizadas, no un libro bancario conciliado.

@@ -12,6 +12,7 @@ urlpatterns = [
     path("clientes/", include("apps.customers.urls")),
     path("ventas/", include("apps.sales.urls")),
     path("caja/", include("apps.cash.urls")),
+    path("finanzas/", include("apps.finance.urls")),
     path("", include("apps.core.urls")),
 ]
 
