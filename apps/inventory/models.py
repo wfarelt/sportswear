@@ -158,6 +158,9 @@ class InventoryOperation(models.Model):
         ADJUSTMENT_OUT = "adjustment_out", "Ajuste negativo"
         TRANSFER_OUT = "transfer_out", "Despacho entre sucursales"
         TRANSFER_IN = "transfer_in", "Recepción entre sucursales"
+        SALE_OUT = "sale_out", "Salida por venta"
+        SALE_RETURN = "sale_return", "Devolución de cliente"
+        SALE_CANCEL = "sale_cancel", "Reversión por anulación de venta"
 
     branch = models.ForeignKey(
         "branches.Branch", on_delete=models.PROTECT, related_name="inventory_operations",
@@ -167,7 +170,8 @@ class InventoryOperation(models.Model):
         StockTransfer, on_delete=models.PROTECT, related_name="inventory_operations",
         null=True, blank=True, verbose_name="transferencia relacionada",
     )
-    kind = models.CharField("tipo de operación", max_length=20, choices=Kind.choices)
+    source_reference = models.CharField("referencia de origen", max_length=64, blank=True)
+    kind = models.CharField("tipo de operación", max_length=24, choices=Kind.choices)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="inventory_operations",
         verbose_name="usuario responsable",

@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Ventas{% endblock %}
+{% block page_heading %}Ventas{% endblock %}
+{% block content %}
+<div class="page-intro module-intro">
+  <div><div class="eyebrow">OPERACIÓN COMERCIAL</div><h1>Ventas</h1><p>Consulta comprobantes y operaciones de las sucursales autorizadas.</p></div>
+  {% if can_create %}<a class="btn btn-primary btn-sm" href="{% url 'sales:create' %}"><i class="bi bi-plus-lg me-1"></i>Nueva venta</a>{% endif %}
+</div>
+<form class="inventory-filter content-panel sale-filters" method="get">
+  <div class="sale-search"><label for="saleSearch">Buscar</label><input id="saleSearch" class="form-control" name="q" value="{{ query }}" placeholder="N.º venta, cliente o documento"></div>
+  <div><label for="saleBranch">Sucursal</label><select id="saleBranch" class="form-select" name="branch"><option value="">Todas las autorizadas</option>{% for branch in branches %}<option value="{{ branch.pk }}" {% if selected_branch.pk == branch.pk %}selected{% endif %}>{{ branch.name }}</option>{% endfor %}</select></div>
+  {% if can_view_all %}<div><label for="saleSeller">Vendedor</label><select id="saleSeller" class="form-select" name="seller"><option value="">Todos</option>{% for seller in sellers %}<option value="{{ seller.pk }}" {% if seller_id == seller.pk|stringformat:'s' %}selected{% endif %}>{{ seller.get_full_name|default:seller.username }}</option>{% endfor %}</select></div>{% endif %}
+  <div><label for="saleStatus">Estado</label><select id="saleStatus" class="form-select" name="status"><option value="">Todos</option>{% for value,label in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <div><label for="fromDate">Desde</label><input id="fromDate" class="form-control" type="date" name="from" value="{{ from_date }}"></div>
+  <div><label for="toDate">Hasta</label><input id="toDate" class="form-control" type="date" name="to" value="{{ to_date }}"></div>
+  <button class="btn btn-outline-secondary btn-sm" type="submit">Filtrar</button>
+</form>
+<section class="content-panel table-panel"><div class="table-responsive"><table class="table data-table align-middle">
+  <thead><tr><th>Venta</th><th>Fecha</th><th>Sucursal</th><th>Cliente</th><th>Vendedor</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+  <tbody>{% for sale in sales %}<tr><td><a href="{% url 'sales:detail' sale.pk %}"><strong>{{ sale.number }}</strong></a></td><td>{{ sale.created_at|date:'d/m/Y H:i' }}</td><td>{{ sale.branch.name }}</td><td>{{ sale.customer.full_name|default:'Ocasional' }}</td><td>{{ sale.seller.get_full_name|default:sale.seller.username }}</td><td><strong>Bs {{ sale.total|floatformat:2 }}</strong></td><td><span class="sale-status {{ sale.status }}">{{ sale.get_status_display }}</span></td><td><a class="table-action" href="{% url 'sales:receipt' sale.pk %}" aria-label="Ver comprobante {{ sale.number }}"><i class="bi bi-receipt"></i></a></td></tr>{% empty %}<tr><td colspan="8"><div class="table-empty"><i class="bi bi-receipt"></i><strong>No hay ventas para mostrar</strong><span>Verifica tus filtros o registra una venta autorizada.</span></div></td></tr>{% endfor %}</tbody>
+</table></div><div class="table-foot"><span>{{ page_obj.paginator.count }} venta{{ page_obj.paginator.count|pluralize:'s' }}</span>{% if page_obj.has_other_pages %}<nav aria-label="Paginación"><ul class="pagination pagination-sm mb-0">{% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?q={{ query|urlencode }}&branch={{ selected_branch.pk }}&seller={{ seller_id }}&status={{ status }}&from={{ from_date }}&to={{ to_date }}&page={{ page_obj.previous_page_number }}">Anterior</a></li>{% endif %}<li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>{% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?q={{ query|urlencode }}&branch={{ selected_branch.pk }}&seller={{ seller_id }}&status={{ status }}&from={{ from_date }}&to={{ to_date }}&page={{ page_obj.next_page_number }}">Siguiente</a></li>{% endif %}</ul></nav>{% endif %}</div></section>
+{% endblock %}

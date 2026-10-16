@@ -62,7 +62,7 @@ class StockTransferAdmin(ReadOnlyHistoryAdmin):
 class InventoryOperationAdmin(ReadOnlyHistoryAdmin):
     list_display = ("id", "kind", "branch", "user", "reason", "created_at")
     list_filter = ("kind", "branch", "created_at")
-    search_fields = ("reason", "user__username", "transfer__id")
+    search_fields = ("reason", "user__username", "transfer__id", "source_reference")
     readonly_fields = tuple(field.name for field in InventoryOperation._meta.fields)
 
 

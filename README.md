@@ -1,6 +1,6 @@
 # Sportswear
 
-Sistema web modular para la gestión de una tienda de ropa deportiva. La implementación sigue el plan incremental del archivo `prompt`; las **Fases 1, 2 y 3** están implementadas.
+Sistema web modular para la gestión de una tienda de ropa deportiva. La implementación sigue el plan incremental del archivo `prompt`; las **Fases 1 a 4** están implementadas.
 
 ## Arquitectura inicial
 
@@ -10,6 +10,8 @@ Sistema web modular para la gestión de una tienda de ropa deportiva. La impleme
 - `apps/branches`: modelo, permisos y gestión de sucursales.
 - `apps/products`: categorías, marcas, tallas, colores, productos y variantes.
 - `apps/inventory`: existencias por sucursal y variante, operaciones trazables y transferencias con recepción parcial.
+- `apps/customers`: información e historial visible de clientes.
+- `apps/sales`: punto de venta, pagos configurables, comprobantes, anulaciones y devoluciones.
 - `templates/` y `static/`: plantilla compartida, autenticación, estilos y JavaScript.
 
 El usuario personalizado se configura antes de la primera migración. Los roles describen el perfil inicial; las vistas de administración del catálogo y sucursales están protegidas con permisos y grupos de Django. Los módulos restantes se añadirán de forma incremental, sin crear registros comerciales de demostración.
@@ -85,3 +87,14 @@ Después de los cambios de modelos, generar y aplicar migraciones. Ejecutar `pyt
 - Las vistas limitan sucursales en servidor según permisos y asignaciones. El Admin conserva el historial en modo solo lectura para evitar ajustes sin movimiento asociado.
 
 PostgreSQL utiliza bloqueos de filas durante las actualizaciones de existencias. SQLite sigue disponible para desarrollo; la prueba automatizada valida reglas de integridad, pero no simula concurrencia real de PostgreSQL.
+
+## Fase 4: clientes y ventas
+
+- Registro y búsqueda de clientes con documento opcional, contacto, observaciones e historial de ventas limitado por sucursales autorizadas.
+- Punto de venta con búsqueda por nombre, código interno, SKU o código de barras, precios efectivos, existencia por sucursal, carrito rápido, cliente opcional y pagos mixtos.
+- Medios de pago configurables desde Django Admin; se cargan Efectivo, Transferencia bancaria, QR y Tarjeta como configuración inicial. Solo Efectivo se marca como efectivo físico; su enlace con turnos de caja se realizará en Fase 5.
+- El servidor vuelve a calcular precios, descuentos autorizados e impuestos; registra copias de precios, costos y descripción en el comprobante. Una venta confirmada actualiza pagos e inventario en la misma transacción y no puede editarse directamente.
+- Las reversiones y devoluciones crean registros compensatorios y movimientos positivos de inventario. Se admiten devoluciones parciales, con reembolso calculado desde los importes históricos. El formato de comprobante actual es interno e imprimible, no fiscal.
+- La clave de idempotencia previene ventas duplicadas ante reintentos. El inventario se bloquea por variante en PostgreSQL; la concurrencia de producción debe probarse en un servidor PostgreSQL real.
+
+Configura permisos Django mediante grupos, incluidos `sales.apply_discount`, `sales.cancel_sale`, `sales.process_salereturn` y `sales.view_all_sales`. Los vendedores sin el último permiso solo consultan sus propias operaciones; los permisos no sustituyen la comprobación de sucursales autorizadas.
