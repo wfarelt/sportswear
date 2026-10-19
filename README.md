@@ -1,6 +1,6 @@
 # Sportswear
 
-Sistema web modular para la gestión de una tienda de ropa deportiva. La implementación sigue el plan incremental del archivo `prompt`; las **Fases 1 a 6** están implementadas.
+Sistema web modular para la gestión de una tienda de ropa deportiva. La implementación sigue el plan incremental del archivo `prompt`; las **Fases 1 a 7** están implementadas.
 
 ## Arquitectura inicial
 
@@ -14,6 +14,7 @@ Sistema web modular para la gestión de una tienda de ropa deportiva. La impleme
 - `apps/sales`: punto de venta, pagos configurables, comprobantes, anulaciones y devoluciones.
 - `apps/cash`: recursos de caja, turnos, cobros vinculados y arqueos inmutables.
 - `apps/finance`: categorías, cuentas, ingresos/egresos con autorización, contabilización en caja y reversiones compensatorias.
+- `apps/reports`: dashboard y reportes derivados de ventas, inventario, caja y finanzas, con exportación CSV/XLSX/PDF.
 - `templates/` y `static/`: plantilla compartida, autenticación, estilos y JavaScript.
 
 El usuario personalizado se configura antes de la primera migración. Los roles describen el perfil inicial; las vistas de administración del catálogo y sucursales están protegidas con permisos y grupos de Django. Los módulos restantes se añadirán de forma incremental, sin crear registros comerciales de demostración.
@@ -122,3 +123,12 @@ Asigna permisos Django `cash.view_cashsession`, `cash.open_cashsession`, `cash.c
 - Las operaciones confirmadas no se editan ni eliminan. Reversiones crean una operación opuesta relacionada con la original, dejan historial de eventos y registran un efecto compensatorio en caja cuando corresponde.
 
 Configura categorías, cuentas, límites de autorización y permisos desde Django Admin. Los permisos relevantes son `finance.add_financeoperation`, `finance.view_financeoperation`, `finance.approve_financeoperation`, `finance.reject_financeoperation`, `finance.reverse_financeoperation` y `finance.view_all_financeoperations`; para contabilizar en efectivo también se requiere `cash.add_cashmovement`. Los permisos `finance.use_general_finance_accounts` y `finance.view_general_finance_accounts` controlan por separado el uso y consulta de cuentas bancarias generales. Los saldos bancarios son calculados desde el saldo inicial más operaciones contabilizadas, no un libro bancario conciliado.
+
+## Fase 7: reportes
+
+- Dashboard y reportes de ventas, inventario, caja y finanzas consultan sus módulos de origen; no almacenan agregados duplicados.
+- Los filtros usan sucursales activas autorizadas y rangos de fecha limitados a 366 días. Los permisos de reportes se combinan con los permisos de lectura de cada módulo; la información financiera y los métodos de pago requieren permisos separados.
+- Las ventas netas restan devoluciones parciales y completas y excluyen ventas anuladas. Las agrupaciones de producto, categoría, marca y variante usan las etiquetas históricas guardadas en cada línea.
+- Exportaciones disponibles en CSV (UTF-8), Excel (.xlsx) y PDF. Los límites de exportación evitan generar archivos excesivos; los archivos tabulares escapan valores para impedir fórmulas inyectadas.
+
+Asigna `reports.view_reports`, `reports.view_sales_reports`, `reports.view_inventory_reports`, `reports.view_finance_reports` y `reports.view_payment_reports` mediante grupos. También se requiere el permiso subyacente de lectura: por ejemplo `sales.view_sale`, `inventory.view_stocklevel`, `finance.view_financeoperation` o `cash.view_cashsession`.

@@ -274,6 +274,8 @@ def confirm_sale(*, branch_id, customer_id, lines, discount_amount, payments, us
                 sale=sale,
                 variant=variant,
                 product_name=variant.product.name,
+                category_name=variant.product.category.name,
+                brand_name=variant.product.brand.name,
                 sku=variant.sku,
                 barcode=variant.barcode or "",
                 size_name=variant.size.name if variant.size_id else "",

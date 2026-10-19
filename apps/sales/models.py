@@ -89,6 +89,8 @@ class SaleLine(models.Model):
         verbose_name="variante",
     )
     product_name = models.CharField("producto", max_length=180)
+    category_name = models.CharField("categoría histórica", max_length=100, blank=True)
+    brand_name = models.CharField("marca histórica", max_length=100, blank=True)
     sku = models.CharField("SKU", max_length=64)
     barcode = models.CharField("código de barras", max_length=64, blank=True)
     size_name = models.CharField("talla", max_length=100, blank=True)

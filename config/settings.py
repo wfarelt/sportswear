@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "apps.sales.apps.SalesConfig",
     "apps.cash.apps.CashConfig",
     "apps.finance.apps.FinanceConfig",
+    "apps.reports.apps.ReportsConfig",
 ]
 
 MIDDLEWARE = [

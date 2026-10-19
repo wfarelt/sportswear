@@ -8,7 +8,8 @@ from apps.branches.models import Branch
 
 @login_required
 def dashboard(request):
-    return render(request, "core/dashboard.html")
+    has_dashboard_data = request.user.is_superuser or request.user.has_perm("reports.view_reports")
+    return render(request, "core/dashboard.html", {"has_dashboard_data": has_dashboard_data})
 
 
 @login_required
