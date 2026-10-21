@@ -366,3 +366,33 @@ class ReportsTests(TestCase):
             date_from=today, date_to=today,
         )
         self.assertEqual(grouped[0]["units"], expected_units)
+
+    def test_seller_dashboard_shows_own_real_sales_without_consolidated_report_permission(self):
+        self.seller.user_permissions.remove(*Permission.objects.filter(
+            content_type__app_label="reports"
+        ))
+        self.seller.__dict__.pop("_perm_cache", None)
+        self.seller.__dict__.pop("_user_perm_cache", None)
+        self.client.force_login(self.seller)
+
+        response = self.client.get(reverse("core:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "DATOS REGISTRADOS")
+        self.assertContains(response, "Ventas netas · hoy")
+        self.assertContains(response, "Bs 55,00")
+        self.assertContains(response, self.product.name)
+        self.assertNotContains(response, "Vista de demostración")
+        self.assertNotContains(response, "EJEMPLO · NO REAL")
+
+    def test_seller_without_report_permissions_cannot_open_consolidated_reports(self):
+        self.seller.user_permissions.remove(*Permission.objects.filter(
+            content_type__app_label="reports"
+        ))
+        self.seller.__dict__.pop("_perm_cache", None)
+        self.seller.__dict__.pop("_user_perm_cache", None)
+        self.client.force_login(self.seller)
+
+        response = self.client.get(reverse("reports:dashboard"))
+
+        self.assertEqual(response.status_code, 403)

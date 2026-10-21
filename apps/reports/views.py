@@ -51,11 +51,13 @@ def _period_label(start, end):
     return f"{start:%d/%m/%Y} – {end:%d/%m/%Y}"
 
 
-def _dashboard_context(request, form, branch, start, end):
+def _dashboard_context(request, form, branch, start, end, *, allow_personal_sales=False):
     today = timezone.localdate()
     month_start = today.replace(day=1)
     branch_filter = branch
-    can_sales = _allowed(request.user, "reports.view_sales_reports") and _allowed(request.user, "sales.view_sale")
+    can_sales = _allowed(request.user, "sales.view_sale") and (
+        _allowed(request.user, "reports.view_sales_reports") or allow_personal_sales
+    )
     sales_today = selectors.sale_summary(request.user, branch=branch_filter, date_from=today, date_to=today) if can_sales else None
     sales_month = selectors.sale_summary(request.user, branch=branch_filter, date_from=month_start, date_to=today) if can_sales else None
     context = {

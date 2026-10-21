@@ -49,8 +49,12 @@ class OpenSessionForm(BootstrapFormMixin, forms.Form):
 
     def __init__(self, *args, user, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["resource"].queryset = CashResource.objects.filter(
+        authorized_resources = CashResource.objects.filter(
             branch__in=authorized_branches(user), branch__is_active=True, is_active=True
+        )
+        self.authorized_resources = authorized_resources
+        self.fields["resource"].queryset = authorized_resources.exclude(
+            sessions__status=CashSession.Status.OPEN
         ).order_by("branch__name", "name")
         self.style_fields()
 

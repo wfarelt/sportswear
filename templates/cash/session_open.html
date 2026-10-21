@@ -1,4 +1,43 @@
 {% extends 'base.html' %}
 {% block title %}Abrir turno de caja{% endblock %}
 {% block page_heading %}Abrir turno de caja{% endblock %}
-{% block content %}<div class="page-intro module-intro"><div><div class="eyebrow">CONTROL DE CAJA</div><h1>Apertura de turno</h1><p>Una caja solo puede tener un turno abierto a la vez.</p></div><a class="btn btn-light btn-sm" href="{% url 'cash:session_list' %}"><i class="bi bi-arrow-left me-1"></i>Cajas</a></div><section class="content-panel form-panel cash-form-panel"><form method="post" novalidate>{% csrf_token %}{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}<div class="inventory-form-grid">{% for field in form %}<div class="form-field {% if field.name == 'notes' %}span-2{% endif %}"><label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}</div>{% endfor %}</div><div class="inventory-note mt-3"><i class="bi bi-info-circle"></i> Apertura, usuario responsable y saldo inicial quedan registrados en el historial.</div><div class="form-actions"><a class="btn btn-light" href="{% url 'cash:session_list' %}">Cancelar</a><button class="btn btn-primary" type="submit">Abrir turno</button></div></form></section>{% endblock %}
+{% block content %}
+<div class="page-intro module-intro">
+	<div><div class="eyebrow">CONTROL DE CAJA</div><h1>Apertura de turno</h1><p>Una caja solo puede tener un turno abierto a la vez.</p></div>
+	<a class="btn btn-light btn-sm" href="{% url 'cash:session_list' %}"><i class="bi bi-arrow-left me-1"></i>Cajas</a>
+</div>
+{% if not resources_available %}
+	<section class="content-panel form-panel cash-form-panel">
+		<div class="alert alert-warning mb-0">
+			<h2 class="h6"><i class="bi bi-exclamation-circle me-1"></i>No hay cajas disponibles para tu usuario</h2>
+			{% if has_authorized_resources %}
+				<p class="mb-0">Todas tus cajas activas y autorizadas ya tienen un turno abierto.</p>
+			{% else %}
+				<p class="mb-2">{% if can_add_cash_resource %}Crea una caja activa y asígnala a una sucursal activa autorizada para ti.{% else %}Solicita al administrador que cree o active una caja y te autorice en su sucursal.{% endif %}</p>
+				{% if can_add_cash_resource %}<a class="btn btn-primary btn-sm" href="{% url 'admin:cash_cashresource_add' %}">Configurar una caja</a>{% endif %}
+			{% endif %}
+		</div>
+	</section>
+{% else %}
+	<section class="content-panel form-panel cash-form-panel">
+		<form method="post" novalidate>
+			{% csrf_token %}
+			{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+			<div class="inventory-form-grid">
+				{% for field in form %}
+					<div class="form-field {% if field.name == 'notes' %}span-2{% endif %}">
+						<label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+						{{ field }}
+						{% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+					</div>
+				{% endfor %}
+			</div>
+			<div class="inventory-note mt-3"><i class="bi bi-info-circle"></i> Apertura, usuario responsable y saldo inicial quedan registrados en el historial.</div>
+			<div class="form-actions">
+				<a class="btn btn-light" href="{% url 'cash:session_list' %}">Cancelar</a>
+				<button class="btn btn-primary" type="submit">Abrir turno</button>
+			</div>
+		</form>
+	</section>
+{% endif %}
+{% endblock %}

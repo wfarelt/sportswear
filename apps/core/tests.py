@@ -17,12 +17,13 @@ class DashboardAccessTests(TestCase):
             response, f"{reverse('accounts:login')}?next={reverse('core:dashboard')}"
         )
 
-    def test_authenticated_user_sees_demo_indicators(self):
+    def test_authenticated_user_without_operational_permissions_sees_access_notice_not_demo(self):
         self.client.force_login(self.user)
         response = self.client.get(reverse("core:dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Vista de demostración")
-        self.assertContains(response, "EJEMPLO · NO REAL")
+        self.assertContains(response, "Acceso no habilitado")
+        self.assertNotContains(response, "Vista de demostración")
+        self.assertNotContains(response, "EJEMPLO · NO REAL")
 
     def test_user_cannot_select_unassigned_branch(self):
         branch = Branch.objects.create(name="Central", code="central")

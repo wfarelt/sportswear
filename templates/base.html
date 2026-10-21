@@ -44,7 +44,7 @@
       {% if perms.products.view_category or perms.products.view_brand or perms.products.view_size or perms.products.view_color or user.is_superuser %}<a class="nav-item {% if request.resolver_match.app_name == 'products' and request.resolver_match.url_name == 'reference_index' or request.resolver_match.url_name == 'reference_list' or request.resolver_match.url_name == 'reference_create' or request.resolver_match.url_name == 'reference_update' %}active{% endif %}" href="{% url 'products:reference_index' %}"><i class="bi bi-tags"></i><span>Catálogos</span></a>{% endif %}
       {% if user.is_staff %}<a class="nav-item" href="{% url 'admin:index' %}"><i class="bi bi-gear"></i><span>Administración</span></a>{% endif %}
     </nav>
-    <div class="sidebar-footer"><span class="status-dot"></span> Sistema en configuración <span class="version-tag">Fase 6</span></div>
+    <div class="sidebar-footer"><span class="status-dot"></span> Gestión comercial</div>
   </aside>
 
   <div class="workspace">
@@ -80,7 +80,7 @@
       {% if messages %}<div class="message-stack">{% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button></div>{% endfor %}</div>{% endif %}
       {% block content %}{% endblock %}
     </main>
-    <footer class="page-footer">Sportswear · Gestión de tienda <span>Desarrollo inicial</span></footer>
+    <footer class="page-footer">Sportswear · Gestión comercial</footer>
   </div>
 </div>
 {% else %}

@@ -191,6 +191,38 @@ class CashViewTests(CashTestMixin, TestCase):
         )
         self.assertEqual(self.client.get(reverse("cash:session_detail", args=[other_session.pk])).status_code, 404)
 
+    def test_open_form_explains_when_no_active_cash_resource_is_available(self):
+        self.resource.is_active = False
+        self.resource.save(update_fields=["is_active"])
+
+        response = self.client.get(reverse("cash:session_open"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No hay cajas disponibles para tu usuario")
+        self.assertContains(response, "Solicita al administrador")
+        self.assertNotContains(response, "Abrir turno</button>")
+
+    def test_open_form_shows_admin_setup_link_to_cash_resource_managers(self):
+        self.grant(self.user, "add_cashresource")
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        self.resource.is_active = False
+        self.resource.save(update_fields=["is_active"])
+
+        response = self.client.get(reverse("cash:session_open"))
+
+        self.assertContains(response, "Configurar una caja")
+        self.assertContains(response, reverse("admin:cash_cashresource_add"))
+
+    def test_open_form_excludes_cash_resources_with_an_open_shift(self):
+        open_session(resource_id=self.resource.pk, opening_balance=0, user=self.user)
+
+        response = self.client.get(reverse("cash:session_open"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Todas tus cajas activas y autorizadas ya tienen un turno abierto")
+        self.assertFalse(response.context["resources_available"])
+
     def test_manual_movement_form_post_creates_history(self):
         session = open_session(resource_id=self.resource.pk, opening_balance=0, user=self.user)
         response = self.client.post(reverse("cash:movement_create"), {

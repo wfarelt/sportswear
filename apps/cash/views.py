@@ -57,6 +57,8 @@ def session_list(request):
 @permission_required_or_superuser("cash.open_cashsession")
 def session_open(request):
     form = OpenSessionForm(request.POST or None, user=request.user)
+    resources_available = form.fields["resource"].queryset.exists()
+    has_authorized_resources = form.authorized_resources.exists()
     if request.method == "POST" and form.is_valid():
         try:
             session = open_session(
@@ -69,7 +71,12 @@ def session_open(request):
             return redirect("cash:session_detail", pk=session.pk)
         except ValidationError as error:
             form.add_error(None, error)
-    return render(request, "cash/session_open.html", {"form": form})
+    return render(request, "cash/session_open.html", {
+        "form": form,
+        "resources_available": resources_available,
+        "has_authorized_resources": has_authorized_resources,
+        "can_add_cash_resource": request.user.is_staff and _can(request.user, "cash.add_cashresource"),
+    })
 
 
 @permission_required_or_superuser("cash.view_cashsession")
