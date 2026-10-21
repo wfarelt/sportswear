@@ -1,6 +1,7 @@
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
+from apps.audit.models import AuditEvent
 from apps.branches.models import Branch
 from apps.users.models import User, UserBranchAccess
 from django.contrib.auth.models import Permission
@@ -62,6 +63,10 @@ class BranchManagementTests(TestCase):
         self.assertRedirects(response, reverse("branches:list"))
         branch.refresh_from_db()
         self.assertEqual(branch.address, "Av. Nueva")
+        event = AuditEvent.objects.filter(object_id=str(branch.pk)).latest("pk")
+        self.assertEqual(event.actor, self.user)
+        self.assertEqual(event.before_data["address"], "Av. Central")
+        self.assertEqual(event.after_data["address"], "Av. Nueva")
 
     def test_branch_search_includes_address_and_responsible(self):
         Branch.objects.create(

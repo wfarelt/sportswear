@@ -1,5 +1,6 @@
 import uuid
 from decimal import Decimal
+from pathlib import Path
 
 from django import forms
 from django.db.models import Q
@@ -100,6 +101,26 @@ class FinanceOperationForm(BootstrapFormMixin, forms.Form):
         elif session:
             self.add_error("cash_session", "Las operaciones bancarias no usan turnos de caja.")
         return cleaned
+
+    def clean_attachment(self):
+        attachment = self.cleaned_data.get("attachment")
+        if attachment is None:
+            return attachment
+        if attachment.size > 10 * 1024 * 1024:
+            raise forms.ValidationError("El comprobante no puede superar 10 MB.")
+        extension = Path(attachment.name).suffix.lower()
+        if extension not in {".pdf", ".jpg", ".jpeg", ".png"}:
+            raise forms.ValidationError("Solo se admiten comprobantes PDF, JPG o PNG.")
+        signatures = {
+            ".pdf": b"%PDF-",
+            ".jpg": b"\xff\xd8\xff",
+            ".jpeg": b"\xff\xd8\xff",
+            ".png": b"\x89PNG\r\n\x1a\n",
+        }
+        if not attachment.read(16).startswith(signatures[extension]):
+            raise forms.ValidationError("El contenido no coincide con el tipo de comprobante indicado.")
+        attachment.seek(0)
+        return attachment
 
 
 class ApproveFinanceOperationForm(BootstrapFormMixin, forms.Form):

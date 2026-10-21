@@ -2,7 +2,7 @@ import hashlib
 import json
 from decimal import Decimal, ROUND_HALF_UP
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
 
@@ -24,6 +24,16 @@ CENT = Decimal("0.01")
 def _fingerprint(payload):
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _require_branch_access(user, branch_id, permission):
+    if not (user.is_superuser or user.has_perm(permission)):
+        raise PermissionDenied("No tienes permiso para esta operación de inventario.")
+    branch_query = Branch.objects.filter(pk=branch_id, is_active=True)
+    if not user.has_global_branch_access:
+        branch_query = branch_query.filter(authorized_users=user)
+    if not branch_query.exists():
+        raise PermissionDenied("No tienes acceso a la sucursal seleccionada.")
 
 
 def _check_replay(existing, request_hash):
@@ -99,6 +109,7 @@ def _apply_movement(*, operation, stock, delta, unit_cost):
 
 
 def record_receipt(*, branch_id, variant_id, quantity, user, reason, idempotency_key, unit_cost=None):
+    _require_branch_access(user, branch_id, "inventory.add_inventoryoperation")
     quantity = int(quantity)
     if quantity <= 0:
         raise ValidationError("La cantidad de entrada debe ser mayor que cero.")
@@ -134,6 +145,7 @@ def record_receipt(*, branch_id, variant_id, quantity, user, reason, idempotency
 
 
 def record_issue(*, branch_id, variant_id, quantity, user, reason, idempotency_key):
+    _require_branch_access(user, branch_id, "inventory.add_inventoryoperation")
     quantity = int(quantity)
     if quantity <= 0:
         raise ValidationError("La cantidad de salida debe ser mayor que cero.")
@@ -171,6 +183,7 @@ def record_issue(*, branch_id, variant_id, quantity, user, reason, idempotency_k
 
 
 def adjust_stock_count(*, branch_id, variant_id, counted_quantity, user, reason, idempotency_key):
+    _require_branch_access(user, branch_id, "inventory.add_inventoryoperation")
     counted_quantity = int(counted_quantity)
     if counted_quantity < 0:
         raise ValidationError("El conteo físico no puede ser negativo.")
@@ -209,6 +222,8 @@ def adjust_stock_count(*, branch_id, variant_id, counted_quantity, user, reason,
 
 
 def create_transfer(*, origin_id, destination_id, lines, user, notes, creation_key):
+    _require_branch_access(user, origin_id, "inventory.add_stocktransfer")
+    _require_branch_access(user, destination_id, "inventory.add_stocktransfer")
     normalized = sorted((int(row["variant_id"]), int(row["quantity"])) for row in lines)
     if not normalized or any(quantity <= 0 for _variant_id, quantity in normalized):
         raise ValidationError("Agrega al menos una variante con cantidad mayor que cero.")
@@ -261,8 +276,11 @@ def create_transfer(*, origin_id, destination_id, lines, user, notes, creation_k
 
 
 def change_transfer_status(*, transfer_id, user, action):
+    if not (user.is_superuser or user.has_perm("inventory.change_stocktransfer")):
+        raise PermissionDenied("No tienes permiso para cambiar el estado de la transferencia.")
     with transaction.atomic():
         transfer = StockTransfer.objects.select_for_update().get(pk=transfer_id)
+        _require_branch_access(user, transfer.origin_id, "inventory.change_stocktransfer")
         if action == "submit":
             if transfer.status == StockTransfer.Status.PENDING:
                 return transfer
@@ -320,8 +338,11 @@ def _locked_transfer(transfer_id):
 
 
 def dispatch_transfer(*, transfer_id, user, idempotency_key):
+    if not (user.is_superuser or user.has_perm("inventory.change_stocktransfer")):
+        raise PermissionDenied("No tienes permiso para despachar transferencias.")
     with transaction.atomic():
         transfer, branches, lines, variants = _locked_transfer(transfer_id)
+        _require_branch_access(user, transfer.origin_id, "inventory.add_inventoryoperation")
         request_hash = _fingerprint({"kind": "transfer_dispatch", "transfer": transfer.pk})
         existing = InventoryOperation.objects.select_for_update().filter(
             idempotency_key=idempotency_key
@@ -374,11 +395,14 @@ def dispatch_transfer(*, transfer_id, user, idempotency_key):
 
 
 def receive_transfer(*, transfer_id, user, quantities, finalize, notes, idempotency_key):
+    if not (user.is_superuser or user.has_perm("inventory.change_stocktransfer")):
+        raise PermissionDenied("No tienes permiso para recibir transferencias.")
     quantities = {int(line_id): int(quantity) for line_id, quantity in quantities.items()}
     if any(quantity < 0 for quantity in quantities.values()):
         raise ValidationError("La cantidad recibida no puede ser negativa.")
     with transaction.atomic():
         transfer, branches, lines, variants = _locked_transfer(transfer_id)
+        _require_branch_access(user, transfer.destination_id, "inventory.add_inventoryoperation")
         request_hash = _fingerprint({
             "kind": "transfer_receive", "transfer": transfer.pk,
             "quantities": sorted(quantities.items()), "finalize": bool(finalize),

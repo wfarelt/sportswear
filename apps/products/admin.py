@@ -1,5 +1,8 @@
 from django.contrib import admin
 
+from apps.audit.models import AuditEvent
+from apps.audit.services import record_event, snapshot
+
 from .models import Brand, Category, Color, Product, ProductVariant, Size
 
 
@@ -8,6 +11,16 @@ class NoDeleteModelAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    def save_model(self, request, obj, form, change):
+        before = snapshot(obj.__class__.objects.get(pk=obj.pk)) if change else None
+        super().save_model(request, obj, form, change)
+        record_event(
+            actor=request.user,
+            action=AuditEvent.Action.UPDATE if change else AuditEvent.Action.CREATE,
+            instance=obj,
+            before_data=before,
+        )
 
 
 @admin.register(Category)
@@ -42,6 +55,10 @@ class ProductVariantInline(admin.TabularInline):
     model = ProductVariant
     extra = 0
     can_delete = False
+    readonly_fields = tuple(field.name for field in ProductVariant._meta.fields)
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Product)

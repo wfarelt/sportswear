@@ -7,6 +7,7 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 
+from apps.audit.models import AuditEvent
 from apps.products.forms import ProductVariantForm
 from apps.products.models import Brand, Category, Color, Product, ProductVariant, Size
 from apps.users.models import User
@@ -167,6 +168,27 @@ class ProductViewTests(ProductTestDataMixin, TestCase):
         self.assertTrue(
             ProductVariant.objects.filter(product=self.product, sku="POL-001-M", size=size).exists()
         )
+        event = AuditEvent.objects.get(
+            object_id=str(ProductVariant.objects.get(sku="POL-001-M").pk),
+            content_type__app_label="products", content_type__model="productvariant",
+        )
+        self.assertEqual(event.actor, self.user)
+
+    def test_product_update_records_price_change(self):
+        response = self.client.post(reverse("products:update", args=[self.product.pk]), {
+            "internal_code": self.product.internal_code, "name": self.product.name,
+            "model_name": "", "supplier_name": "", "description": "",
+            "category": self.product.category_id, "brand": self.product.brand_id,
+            "cost": "40.00", "sale_price": "95.00", "promotional_price": "",
+            "tax_rate": "0.00", "is_active": "on",
+        })
+        self.assertRedirects(response, reverse("products:detail", args=[self.product.pk]))
+        event = AuditEvent.objects.get(
+            object_id=str(self.product.pk), content_type__app_label="products",
+            content_type__model="product", action=AuditEvent.Action.UPDATE,
+        )
+        self.assertEqual(event.before_data["sale_price"], "80.00")
+        self.assertEqual(event.after_data["sale_price"], "95.00")
 
     def test_product_detail_renders_variant_catalog(self):
         size = Size.objects.create(name="M")

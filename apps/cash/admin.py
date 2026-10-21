@@ -1,5 +1,8 @@
 from django.contrib import admin
 
+from apps.audit.models import AuditEvent
+from apps.audit.services import record_event, snapshot
+
 from .models import CashMovement, CashResource, CashSession, CashSessionEvent
 
 
@@ -8,6 +11,16 @@ class CashResourceAdmin(admin.ModelAdmin):
     list_display = ("name", "code", "branch", "is_active")
     list_filter = ("branch", "is_active")
     search_fields = ("name", "code", "branch__name")
+
+    def save_model(self, request, obj, form, change):
+        before = snapshot(CashResource.objects.get(pk=obj.pk)) if change else None
+        super().save_model(request, obj, form, change)
+        record_event(
+            actor=request.user,
+            action=AuditEvent.Action.UPDATE if change else AuditEvent.Action.CREATE,
+            instance=obj,
+            before_data=before,
+        )
 
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.sessions.exists():

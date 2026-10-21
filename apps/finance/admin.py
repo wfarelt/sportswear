@@ -1,10 +1,25 @@
 from django.contrib import admin
 
+from apps.audit.models import AuditEvent
+from apps.audit.services import record_event, snapshot
+
 from .models import FinanceAccount, FinanceApprovalLimit, FinanceCategory, FinanceEvent, FinanceOperation
 
 
+class AuditedFinanceAdmin(admin.ModelAdmin):
+    def save_model(self, request, obj, form, change):
+        before = snapshot(obj.__class__.objects.get(pk=obj.pk)) if change else None
+        super().save_model(request, obj, form, change)
+        record_event(
+            actor=request.user,
+            action=AuditEvent.Action.UPDATE if change else AuditEvent.Action.CREATE,
+            instance=obj,
+            before_data=before,
+        )
+
+
 @admin.register(FinanceCategory)
-class FinanceCategoryAdmin(admin.ModelAdmin):
+class FinanceCategoryAdmin(AuditedFinanceAdmin):
     list_display = ("name", "kind", "is_active", "created_at")
     list_filter = ("kind", "is_active")
     search_fields = ("name", "description")
@@ -12,12 +27,8 @@ class FinanceCategoryAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
 @admin.register(FinanceAccount)
-class FinanceAccountAdmin(admin.ModelAdmin):
+class FinanceAccountAdmin(AuditedFinanceAdmin):
     list_display = ("name", "kind", "branch", "cash_resource", "currency", "is_active")
     list_filter = ("kind", "branch", "is_active")
     search_fields = ("name", "account_reference", "branch__name")
@@ -25,18 +36,12 @@ class FinanceAccountAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
-    def has_delete_permission(self, request, obj=None):
-        return False
-
 
 @admin.register(FinanceApprovalLimit)
-class FinanceApprovalLimitAdmin(admin.ModelAdmin):
+class FinanceApprovalLimitAdmin(AuditedFinanceAdmin):
     list_display = ("user", "role", "branch", "maximum_amount", "is_active")
     list_filter = ("role", "branch", "is_active")
     search_fields = ("user__username", "user__first_name", "user__last_name")
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
     def has_delete_permission(self, request, obj=None):
         return False

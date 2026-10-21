@@ -263,7 +263,14 @@ def _export_data(user, report_type, branch, start, end, query_params):
             raise PermissionDenied
         if group_by == "payment" and not (user.is_superuser or user.has_perm("sales.view_all_sales") or user.has_perm("reports.view_payment_reports")):
             raise PermissionDenied
-        grouped = selectors.sales_grouped(user, group_by=group_by, branch=branch, date_from=start, date_to=end)
+        grouped = selectors.sales_grouped(
+            user,
+            group_by=group_by,
+            branch=branch,
+            date_from=start,
+            date_to=end,
+            limit=5000,
+        )
         rows = [{
             "label": item.get("label", ""),
             "count": item.get("count", 0),

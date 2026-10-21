@@ -155,40 +155,45 @@ def sale_summary(user, *, branch=None, date_from=None, date_to=None):
 
 def top_products(user, *, branch=None, date_from=None, date_to=None, limit=8):
     sales = scoped_sales(user, branch, date_from, date_to)
-    totals = {}
-    lines = SaleLine.objects.filter(sale__in=sales).values(
-        "product_name", "sku", "quantity", "quantity_returned", "line_total"
+    query = (
+        SaleLine.objects.filter(sale__in=sales)
+        .values("product_name", "sku")
+        .annotate(
+            units=Sum(F("quantity") - F("quantity_returned")),
+            revenue=Sum(
+                ExpressionWrapper(
+                    F("line_total")
+                    * (F("quantity") - F("quantity_returned"))
+                    / F("quantity"),
+                    output_field=DecimalField(max_digits=16, decimal_places=2),
+                )
+            ),
+        )
+        .order_by("-units", "product_name", "sku")
     )
-    for line in lines.iterator(chunk_size=1000):
-        key = (line["product_name"], line["sku"])
-        record = totals.setdefault(key, {"product_name": key[0], "sku": key[1], "units": 0, "revenue": ZERO})
-        remaining = line["quantity"] - line["quantity_returned"]
-        record["units"] += remaining
-        if line["quantity"]:
-            record["revenue"] += (
-                line["line_total"] * Decimal(remaining) / Decimal(line["quantity"])
-            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    return sorted(totals.values(), key=lambda row: (-row["units"], row["product_name"], row["sku"]))[:limit]
+    return list(query[:limit])
 
 
-def sales_grouped(user, *, group_by, branch=None, date_from=None, date_to=None):
+def sales_grouped(user, *, group_by, branch=None, date_from=None, date_to=None, limit=None):
     sales = scoped_sales(user, branch, date_from, date_to)
     if group_by == "day":
-        return list(sales.annotate(label=TruncDate("created_at")).values("label").annotate(
+        query = sales.annotate(label=TruncDate("created_at")).values("label").annotate(
             count=Count("pk"), amount=Sum("total")
-        ).order_by("label"))
+        ).order_by("label")
+        return list(query[:limit] if limit else query)
     if group_by == "branch":
-        return list(sales.values("branch__name").annotate(
+        query = sales.values("branch__name").annotate(
             label=F("branch__name"), count=Count("pk"), amount=Sum("total")
-        ).order_by("label"))
+        ).order_by("label")
+        return list(query[:limit] if limit else query)
     if group_by == "seller":
         if not (user.is_superuser or user.has_perm("sales.view_all_sales")):
             raise PermissionDenied
-        return list(sales.annotate(
-            label=F("seller__username")
-        ).values("seller_id", "label").annotate(
-            count=Count("pk"), amount=Sum("total")
-        ).order_by("label"))
+        query = sales.annotate(label=F("seller__username")).values(
+            "seller_id", "label"
+        ).annotate(count=Count("pk"), amount=Sum("total")).order_by("label")
+        return list(query[:limit] if limit else query)
+
     line_query = SaleLine.objects.filter(sale__in=sales)
     grouping = {
         "product": ("product_name",),
@@ -198,31 +203,38 @@ def sales_grouped(user, *, group_by, branch=None, date_from=None, date_to=None):
     }
     if group_by in grouping:
         keys = grouping[group_by]
-        totals = {}
-        values = line_query.values(
-            *keys, "quantity", "quantity_returned", "line_total"
-        ).iterator(chunk_size=1000)
-        for line in values:
-            key = tuple(line.get(name) for name in keys)
-            record = totals.setdefault(key, {name: value for name, value in zip(keys, key)})
-            remaining = line["quantity"] - line["quantity_returned"]
-            record["units"] = record.get("units", 0) + remaining
-            returned_revenue = (
-                line["line_total"] * Decimal(line["quantity_returned"]) / Decimal(line["quantity"])
-            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if line["quantity"] else ZERO
-            record["revenue"] = record.get("revenue", ZERO) + line["line_total"] - returned_revenue
+        rows = line_query.values(*keys).annotate(
+            units=Sum(F("quantity") - F("quantity_returned")),
+            revenue=Sum(
+                ExpressionWrapper(
+                    F("line_total")
+                    * (F("quantity") - F("quantity_returned"))
+                    / F("quantity"),
+                    output_field=DecimalField(max_digits=16, decimal_places=2),
+                )
+            ),
+        ).order_by("-units", *keys)
+        if limit:
+            rows = rows[:limit]
         result = []
-        for key, record in totals.items():
-            record["label"] = " / ".join(str(value or "—") for value in key)
-            result.append(record)
-        return sorted(result, key=lambda row: (-row["units"], row["label"]))
+        for row in rows.iterator(chunk_size=1000):
+            label_values = tuple(row.get(key) for key in keys)
+            row["label"] = " / ".join(str(value or "—") for value in label_values)
+            result.append(row)
+        return result
     if group_by == "status":
-        return list(scoped_all_sales(user, branch, date_from, date_to).values("status").annotate(
+        query = scoped_all_sales(user, branch, date_from, date_to).values("status").annotate(
             label=F("status"), count=Count("pk"), amount=Sum("total")
-        ).order_by("label"))
+        ).order_by("label")
+        return list(query[:limit] if limit else query)
     if group_by == "payment":
-        if not (user.is_superuser or user.has_perm("sales.view_all_sales") or user.has_perm("reports.view_payment_reports")):
+        if not (
+            user.is_superuser
+            or user.has_perm("sales.view_all_sales")
+            or user.has_perm("reports.view_payment_reports")
+        ):
             raise PermissionDenied
+        rows = payment_grouped(user, branch=branch, date_from=date_from, date_to=date_to)
         return [
             {
                 "label": row["method__name"],
@@ -230,7 +242,7 @@ def sales_grouped(user, *, group_by, branch=None, date_from=None, date_to=None):
                 "amount": row["amount"],
                 "affects_cash": row["method__affects_cash"],
             }
-            for row in payment_grouped(user, branch=branch, date_from=date_from, date_to=date_to)
+            for row in (rows[:limit] if limit else rows)
         ]
     return []
 
@@ -364,3 +376,6 @@ def branch_sales_comparison(user, *, date_from=None, date_to=None):
     for row in rows:
         row["cancelled_count"] = cancelled_by_branch.get(row["branch_id"], 0)
     return sorted(rows, key=lambda row: (-row["net"], row["label"]))
+    grouped = selectors.sales_grouped(
+        user, group_by=group_by, branch=branch, date_from=start, date_to=end, limit=5000
+    )

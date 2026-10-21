@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
@@ -20,6 +21,14 @@ class Customer(models.Model):
     email = models.EmailField("correo electrónico", blank=True)
     address = models.CharField("dirección", max_length=255, blank=True)
     notes = models.TextField("observaciones", blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="customers_created",
+        verbose_name="registrado por",
+    )
     is_active = models.BooleanField("activo", default=True)
     created_at = models.DateTimeField("registrado el", auto_now_add=True)
 

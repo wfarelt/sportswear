@@ -1,5 +1,8 @@
 from django.contrib import admin
 
+from apps.audit.models import AuditEvent
+from apps.audit.services import record_event, snapshot
+
 from .models import (
     PaymentMethod,
     Sale,
@@ -16,6 +19,16 @@ class PaymentMethodAdmin(admin.ModelAdmin):
     list_display = ("name", "code", "affects_cash", "is_active", "sort_order")
     list_filter = ("is_active", "affects_cash")
     search_fields = ("name", "code")
+
+    def save_model(self, request, obj, form, change):
+        before = snapshot(PaymentMethod.objects.get(pk=obj.pk)) if change else None
+        super().save_model(request, obj, form, change)
+        record_event(
+            actor=request.user,
+            action=AuditEvent.Action.UPDATE if change else AuditEvent.Action.CREATE,
+            instance=obj,
+            before_data=before,
+        )
 
     def has_delete_permission(self, request, obj=None):
         return False

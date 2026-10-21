@@ -5,6 +5,8 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
 
+from .storage import PrivateFinanceStorage
+
 
 class FinanceCategory(models.Model):
     class Kind(models.TextChoices):
@@ -107,7 +109,26 @@ class FinanceApprovalLimit(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(condition=Q(user__isnull=False) | Q(role__gt=""), name="finance_limit_has_user_or_role"),
-            models.UniqueConstraint(fields=["user", "role", "branch"], name="unique_finance_approval_scope"),
+            models.UniqueConstraint(
+                fields=["user", "branch"],
+                condition=Q(user__isnull=False, branch__isnull=False),
+                name="finance_limit_user_branch_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=Q(user__isnull=False, branch__isnull=True),
+                name="finance_limit_user_global_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["role", "branch"],
+                condition=Q(user__isnull=True, role__gt="", branch__isnull=False),
+                name="finance_limit_role_branch_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["role"],
+                condition=Q(user__isnull=True, role__gt="", branch__isnull=True),
+                name="finance_limit_role_global_uniq",
+            ),
             models.CheckConstraint(condition=Q(maximum_amount__gte=0), name="finance_limit_nonnegative"),
         ]
         verbose_name = "límite de autorización financiera"
@@ -162,7 +183,12 @@ class FinanceOperation(models.Model):
     )
     operation_date = models.DateField("fecha de operación")
     notes = models.TextField("observaciones", blank=True)
-    attachment = models.FileField("comprobante adjunto", upload_to="finance/", blank=True)
+    attachment = models.FileField(
+        "comprobante adjunto",
+        upload_to="finance/",
+        storage=PrivateFinanceStorage(),
+        blank=True,
+    )
     status = models.CharField("estado", max_length=12, choices=Status.choices, default=Status.PENDING)
     idempotency_key = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     request_hash = models.CharField(max_length=64, blank=True)

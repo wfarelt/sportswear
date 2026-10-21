@@ -8,14 +8,19 @@ load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-change-me")
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() in {"true", "1", "yes"}
-if not DEBUG and SECRET_KEY == "dev-only-change-me":
-    raise ValueError("Set DJANGO_SECRET_KEY to a secure value when DEBUG is disabled.")
+if not DEBUG and (
+    SECRET_KEY in {"dev-only-change-me", "replace-this-with-a-long-random-secret"}
+    or len(SECRET_KEY) < 50
+):
+    raise ValueError("Set DJANGO_SECRET_KEY to a random value of at least 50 characters when DEBUG is disabled.")
 
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
     if host.strip()
 ]
+if not DEBUG and not ALLOWED_HOSTS:
+    raise ValueError("Set DJANGO_ALLOWED_HOSTS to the production host names.")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -34,6 +39,7 @@ INSTALLED_APPS = [
     "apps.cash.apps.CashConfig",
     "apps.finance.apps.FinanceConfig",
     "apps.reports.apps.ReportsConfig",
+    "apps.audit.apps.AuditConfig",
 ]
 
 MIDDLEWARE = [
@@ -85,6 +91,10 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / os.getenv("DB_NAME", "sportswear.sqlite3"),
+            "OPTIONS": {
+                "timeout": int(os.getenv("SQLITE_TIMEOUT", "30")),
+                "transaction_mode": os.getenv("SQLITE_TRANSACTION_MODE", "IMMEDIATE").upper(),
+            },
         }
     }
 
@@ -106,6 +116,7 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+PRIVATE_MEDIA_ROOT = Path(os.getenv("DJANGO_PRIVATE_MEDIA_ROOT", BASE_DIR / "private_media"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "accounts:login"
@@ -122,4 +133,23 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@sportswear.local")
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_SSL_REDIRECT = os.getenv(
+    "DJANGO_SECURE_SSL_REDIRECT", str(not DEBUG)
+).lower() in {"true", "1", "yes"}
+SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_SECURE_HSTS_SECONDS", "31536000" if not DEBUG else "0"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv(
+    "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", "False"
+).lower() in {"true", "1", "yes"}
+SECURE_HSTS_PRELOAD = os.getenv("DJANGO_SECURE_HSTS_PRELOAD", "False").lower() in {
+    "true", "1", "yes"
+}
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
 X_FRAME_OPTIONS = "DENY"

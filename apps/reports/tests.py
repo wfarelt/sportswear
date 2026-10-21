@@ -19,6 +19,7 @@ from apps.products.models import Brand, Category, Product, ProductVariant, Size
 from apps.sales.models import PaymentMethod, Sale, SaleLine
 from apps.sales.services import confirm_sale, process_return
 from apps.users.models import User, UserBranchAccess
+from apps.reports import selectors
 
 
 class ReportsTests(TestCase):
@@ -345,3 +346,23 @@ class ReportsTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response["Content-Type"], content_type)
                 self.assertIn(b"attachment; filename=", response["Content-Disposition"].encode())
+
+    def test_product_aggregations_are_net_of_returned_units(self):
+        sale = self.sales[0]
+        line = sale.lines.get()
+        line.quantity_returned = 1
+        line.save(update_fields=["quantity_returned"])
+        expected_units = sum(
+            item.quantity - item.quantity_returned
+            for item in SaleLine.objects.filter(sale__branch=self.branch)
+        )
+        today = timezone.localdate()
+        summary = selectors.top_products(
+            self.manager, branch=self.branch, date_from=today, date_to=today,
+        )
+        self.assertEqual(summary[0]["units"], expected_units)
+        grouped = selectors.sales_grouped(
+            self.manager, group_by="product", branch=self.branch,
+            date_from=today, date_to=today,
+        )
+        self.assertEqual(grouped[0]["units"], expected_units)

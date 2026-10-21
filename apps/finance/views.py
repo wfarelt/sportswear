@@ -7,6 +7,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db.models import DecimalField, ExpressionWrapper, F, OuterRef, Q, Subquery, Sum, Value
 from django.db.models.functions import Coalesce
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -170,6 +171,24 @@ def operation_detail(request, pk):
         "reject_form": RejectFinanceOperationForm(),
         "reverse_form": reversal_form,
     })
+
+
+@login_required
+def operation_attachment(request, pk):
+    if not any(_can(request.user, permission) for permission in (
+        "finance.view_financeoperation", "finance.add_financeoperation",
+        "finance.approve_financeoperation", "finance.reject_financeoperation",
+        "finance.reverse_financeoperation",
+    )):
+        raise PermissionDenied
+    operation = _get_operation(request.user, pk)
+    if not operation.attachment:
+        raise Http404("La operación no tiene comprobante adjunto.")
+    return FileResponse(
+        operation.attachment.open("rb"),
+        as_attachment=True,
+        filename=operation.attachment.name.rsplit("/", 1)[-1],
+    )
 
 
 @permission_required_or_superuser("finance.approve_financeoperation")

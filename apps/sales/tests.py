@@ -408,5 +408,5 @@ class SalesViewTests(SalesTestDataMixin, TestCase):
             cash_session_id=other_session.pk,
         )
         response = self.client.get(reverse("customers:detail", args=[self.customer.pk]))
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, other_sale.number)
+        self.assertEqual(response.status_code, 404)
+        self.assertNotIn(other_sale.number.encode(), response.content)

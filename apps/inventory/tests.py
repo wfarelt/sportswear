@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 
 from django.contrib.auth.models import Permission
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
@@ -41,6 +41,10 @@ class InventoryTestDataMixin:
         self.variant = ProductVariant.objects.create(
             product=self.product, sku="POL-001-M", size=self.size
         )
+        self.assign(self.user, self.origin)
+        self.grant(
+            self.user, "add_inventoryoperation", "add_stocktransfer", "change_stocktransfer"
+        )
 
     def grant(self, user, *codenames):
         permissions = Permission.objects.filter(
@@ -49,9 +53,8 @@ class InventoryTestDataMixin:
         user.user_permissions.add(*permissions)
 
     def assign(self, user, *branches):
-        UserBranchAccess.objects.bulk_create([
-            UserBranchAccess(user=user, branch=branch) for branch in branches
-        ])
+        for branch in branches:
+            UserBranchAccess.objects.get_or_create(user=user, branch=branch)
 
     def receive(self, quantity, *, key=None, reason="Compra de proveedor", unit_cost="10.00"):
         return record_receipt(
@@ -62,6 +65,31 @@ class InventoryTestDataMixin:
 
 
 class InventoryServiceTests(InventoryTestDataMixin, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.assign(self.user, self.destination)
+
+    def test_inventory_service_rejects_missing_permission_and_unassigned_branch(self):
+        unauthorized = User.objects.create_user(
+            username="unauthorized", password="Secure-stock-password-123"
+        )
+        with self.assertRaises(PermissionDenied):
+            record_receipt(
+                branch_id=self.origin.pk, variant_id=self.variant.pk, quantity=1,
+                user=unauthorized, reason="Intento", idempotency_key=uuid.uuid4(),
+            )
+
+        assigned_user = User.objects.create_user(
+            username="assigned", password="Secure-stock-password-123"
+        )
+        self.assign(assigned_user, self.origin)
+        self.grant(assigned_user, "add_inventoryoperation")
+        with self.assertRaises(PermissionDenied):
+            record_receipt(
+                branch_id=self.destination.pk, variant_id=self.variant.pk, quantity=1,
+                user=assigned_user, reason="Intento", idempotency_key=uuid.uuid4(),
+            )
+
     def test_receipts_update_stock_and_weighted_average_cost(self):
         self.receive(10, unit_cost="10.00")
         self.receive(10, unit_cost="20.00")

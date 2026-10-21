@@ -2,10 +2,13 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.audit.models import AuditEvent
+from apps.audit.services import record_event, snapshot
 from apps.core.decorators import permission_required_or_superuser
 
 from .forms import BrandForm, CategoryForm, ColorForm, ProductForm, ProductVariantForm, SizeForm
@@ -78,10 +81,12 @@ def product_list(request):
 
 
 @permission_required_or_superuser("products.add_product")
+@transaction.atomic
 def product_create(request):
     form = ProductForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
         product = form.save()
+        record_event(actor=request.user, action=AuditEvent.Action.CREATE, instance=product)
         messages.success(request, f"El producto {product.name} se creó. Ahora puedes añadir sus variantes.")
         return redirect("products:detail", pk=product.pk)
     return render(request, "products/product_form.html", {"form": form, "page_title": "Nuevo producto"})
@@ -99,11 +104,17 @@ def product_detail(request, pk):
 
 
 @permission_required_or_superuser("products.change_product")
+@transaction.atomic
 def product_update(request, pk):
     product = get_object_or_404(Product, pk=pk)
     form = ProductForm(request.POST or None, request.FILES or None, instance=product)
     if request.method == "POST" and form.is_valid():
+        before = snapshot(Product.objects.get(pk=product.pk))
         product = form.save()
+        record_event(
+            actor=request.user, action=AuditEvent.Action.UPDATE, instance=product,
+            before_data=before,
+        )
         messages.success(request, f"El producto {product.name} se actualizó correctamente.")
         return redirect("products:detail", pk=product.pk)
     return render(
@@ -114,12 +125,14 @@ def product_update(request, pk):
 
 
 @permission_required_or_superuser("products.add_productvariant")
+@transaction.atomic
 def variant_create(request, product_pk):
     product = get_object_or_404(Product, pk=product_pk)
     variant = ProductVariant(product=product)
     form = ProductVariantForm(request.POST or None, instance=variant)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        variant = form.save()
+        record_event(actor=request.user, action=AuditEvent.Action.CREATE, instance=variant)
         messages.success(request, "La variante se agregó correctamente.")
         return redirect("products:detail", pk=product.pk)
     return render(
@@ -130,12 +143,18 @@ def variant_create(request, product_pk):
 
 
 @permission_required_or_superuser("products.change_productvariant")
+@transaction.atomic
 def variant_update(request, product_pk, pk):
     product = get_object_or_404(Product, pk=product_pk)
     variant = get_object_or_404(ProductVariant, pk=pk, product=product)
     form = ProductVariantForm(request.POST or None, instance=variant)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        before = snapshot(ProductVariant.objects.get(pk=variant.pk))
+        variant = form.save()
+        record_event(
+            actor=request.user, action=AuditEvent.Action.UPDATE, instance=variant,
+            before_data=before,
+        )
         messages.success(request, "La variante se actualizó correctamente.")
         return redirect("products:detail", pk=product.pk)
     return render(
@@ -170,11 +189,13 @@ def reference_list(request, kind):
     )
 
 
+@transaction.atomic
 def reference_create(request, kind):
     model, form_class, label, singular = _require_reference_permission(request, kind, "add")
     form = form_class(request.POST or None)
     if request.method == "POST" and form.is_valid():
         record = form.save()
+        record_event(actor=request.user, action=AuditEvent.Action.CREATE, instance=record)
         messages.success(request, f"La {singular} «{record.name}» se creó correctamente.")
         return redirect("products:reference_list", kind=kind)
     return render(
@@ -184,12 +205,18 @@ def reference_create(request, kind):
     )
 
 
+@transaction.atomic
 def reference_update(request, kind, pk):
     model, form_class, label, singular = _require_reference_permission(request, kind, "change")
     record = get_object_or_404(model, pk=pk)
     form = form_class(request.POST or None, instance=record)
     if request.method == "POST" and form.is_valid():
+        before = snapshot(model.objects.get(pk=record.pk))
         record = form.save()
+        record_event(
+            actor=request.user, action=AuditEvent.Action.UPDATE, instance=record,
+            before_data=before,
+        )
         messages.success(request, f"La {singular} «{record.name}» se actualizó correctamente.")
         return redirect("products:reference_list", kind=kind)
     return render(

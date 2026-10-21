@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from django.contrib.auth.models import Permission
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.branches.models import Branch
@@ -13,6 +13,7 @@ from apps.cash.services import open_session
 from apps.sales.models import PaymentMethod
 from apps.users.models import User, UserBranchAccess
 
+from .forms import FinanceOperationForm
 from .models import (
     FinanceAccount,
     FinanceApprovalLimit,
@@ -96,6 +97,19 @@ class FinanceTestMixin:
 
 
 class FinanceServiceTests(FinanceTestMixin, TestCase):
+    def test_approval_limit_scope_uniqueness_covers_nullable_dimensions(self):
+        from django.db import IntegrityError, transaction
+
+        scopes = (
+            {"user": self.creator, "branch": None, "role": ""},
+            {"user": None, "branch": None, "role": User.Role.SELLER},
+            {"user": None, "branch": self.branch, "role": User.Role.SELLER},
+        )
+        for index, scope in enumerate(scopes):
+            with self.subTest(scope=scope):
+                FinanceApprovalLimit.objects.create(maximum_amount=Decimal("10.00"), **scope)
+                with self.assertRaises(IntegrityError), transaction.atomic():
+                    FinanceApprovalLimit.objects.create(maximum_amount=Decimal("20.00"), **scope)
     def test_cash_income_posts_to_finance_and_cash_once_and_changes_close_expected(self):
         operation = self.create(amount="25.50", session=self.session)
         self.assertEqual(operation.status, FinanceOperation.Status.POSTED)
@@ -300,6 +314,83 @@ class FinanceViewTests(FinanceTestMixin, TestCase):
         response = self.client.get(reverse("finance:detail", args=[operation.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, operation.number)
+
+    @override_settings(MEDIA_ROOT="/tmp/sportswear-finance-test-media")
+    def test_finance_attachment_download_requires_operation_visibility(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        import tempfile
+
+        temporary_storage = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_storage.cleanup)
+        FinanceOperation._meta.get_field("attachment").storage.location = temporary_storage.name
+
+        operation = create_operation(
+            kind=FinanceOperation.Kind.INCOME,
+            category_id=self.income_category.pk,
+            branch_id=self.branch.pk,
+            account_id=self.bank_account.pk,
+            concept="Comprobante protegido",
+            amount=Decimal("25.00"),
+            operation_date=date(2026, 10, 16),
+            notes="",
+            user=self.creator,
+            idempotency_key=uuid.uuid4(),
+            attachment=SimpleUploadedFile("receipt.pdf", b"%PDF-private receipt"),
+        )
+        self.addCleanup(operation.attachment.delete, save=False)
+        response = self.client.get(reverse("finance:attachment", args=[operation.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Disposition"], 'attachment; filename="receipt.pdf"')
+        with self.assertRaisesMessage(ValueError, "descarga autorizada"):
+            _ = operation.attachment.url
+
+        other = User.objects.create_user(username="remote-finance", password="Secure-finance-123")
+        self.grant(other, "view_financeoperation")
+        other_branch = Branch.objects.create(name="Remota", code="remota")
+        UserBranchAccess.objects.create(user=other, branch=other_branch)
+        self.client.force_login(other)
+        self.assertEqual(self.client.get(reverse("finance:attachment", args=[operation.pk])).status_code, 404)
+
+    def test_finance_form_rejects_unsupported_or_oversized_attachments(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        common = {
+            "branch": self.branch.pk,
+            "category": self.income_category.pk,
+            "account": self.bank_account.pk,
+            "amount": "25.00",
+            "concept": "Comprobante de prueba",
+            "operation_date": "2026-10-16",
+            "payment_method": self.bank_method.pk,
+            "notes": "",
+            "idempotency_key": str(uuid.uuid4()),
+        }
+        unsupported = FinanceOperationForm(
+            data=common,
+            files={"attachment": SimpleUploadedFile("payload.exe", b"not allowed")},
+            user=self.creator,
+            kind=FinanceOperation.Kind.INCOME,
+        )
+        self.assertFalse(unsupported.is_valid())
+        self.assertIn("Solo se admiten", str(unsupported.errors["attachment"]))
+
+        oversized = FinanceOperationForm(
+            data={**common, "idempotency_key": str(uuid.uuid4())},
+            files={"attachment": SimpleUploadedFile("large.pdf", b"%PDF-" + b"0" * (10 * 1024 * 1024 - 4))},
+            user=self.creator,
+            kind=FinanceOperation.Kind.INCOME,
+        )
+        self.assertFalse(oversized.is_valid())
+        self.assertIn("10 MB", str(oversized.errors["attachment"]))
+
+        disguised = FinanceOperationForm(
+            data={**common, "idempotency_key": str(uuid.uuid4())},
+            files={"attachment": SimpleUploadedFile("payload.pdf", b"MZ executable")},
+            user=self.creator,
+            kind=FinanceOperation.Kind.INCOME,
+        )
+        self.assertFalse(disguised.is_valid())
+        self.assertIn("no coincide", str(disguised.errors["attachment"]))
 
     def test_finance_list_requires_permissions(self):
         limited = User.objects.create_user(username="no-finance", password="Secure-finance-123")
